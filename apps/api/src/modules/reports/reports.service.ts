@@ -19,7 +19,11 @@ import {
   pickClaimCampaign,
 } from './campaign-claim.helpers';
 import { buildSalespersonBreakdown, computeSaleMoney } from './sales-summary.helpers';
-import { resolveStockInterestDisplay } from '../interest/stock-interest-display';
+import { parseDay } from '../interest/interest.dates';
+import {
+  resolveStockInterestDisplay,
+  resolveStockInterestWindow,
+} from '../interest/stock-interest-display';
 
 export { splitVat };
 
@@ -1030,7 +1034,7 @@ interface StockInterestParams {
 }
 
 export async function getStockInterestReport(params: StockInterestParams) {
-  const { status, isCalculating, brand } = params;
+  const { startDate, endDate, status, isCalculating, brand } = params;
 
   const where: Record<string, unknown> = {
     deletedAt: null,
@@ -1070,50 +1074,67 @@ export async function getStockInterestReport(params: StockInterestParams) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const stockItems = stocks.map((stock) => {
+  // Report window. Both bounds are optional so an unfiltered call keeps the old
+  // lifetime-to-today numbers; the report page always sends both.
+  // An unparseable date is ignored rather than poisoning every day count with NaN.
+  const validDay = (d?: Date): Date | null => (d && !Number.isNaN(d.getTime()) ? d : null);
+  const windowStart = validDay(startDate);
+  const windowEnd = validDay(endDate);
+  const windowStartMs = windowStart ? parseDay(windowStart).getTime() : Number.NEGATIVE_INFINITY;
+  const windowEndMs = windowEnd ? parseDay(windowEnd).getTime() : Number.POSITIVE_INFINITY;
+  const isWindowed = windowStart !== null || windowEnd !== null;
+
+  const allStockItems = stocks.map((stock) => {
     const baseCost = toNumber(stock.baseCost);
-    const display = resolveStockInterestDisplay(
-      {
-        orderDate: stock.orderDate,
-        arrivalDate: stock.arrivalDate,
-        soldDate: stock.soldDate,
-        stopInterestCalc: stock.stopInterestCalc,
-        interestStoppedAt: stock.interestStoppedAt,
-        debtStatus: stock.debtStatus,
-        interestRate: toNumber(stock.interestRate),
-        interestPrincipalBase: stock.interestPrincipalBase,
-        baseCost,
-        transportCost: toNumber(stock.transportCost),
-        accessoryCost: toNumber(stock.accessoryCost),
-        otherCosts: toNumber(stock.otherCosts),
-        interestPeriods: stock.interestPeriods.map((p) => ({
-          startDate: p.startDate,
-          endDate: p.endDate,
-          annualRate: toNumber(p.annualRate),
-          principalBase: p.principalBase,
-          principalAmount: toNumber(p.principalAmount),
-          calculatedInterest: toNumber(p.calculatedInterest),
-          daysCount: p.daysCount,
-        })),
-      },
-      today
-    );
+    const interestInput = {
+      orderDate: stock.orderDate,
+      arrivalDate: stock.arrivalDate,
+      soldDate: stock.soldDate,
+      stopInterestCalc: stock.stopInterestCalc,
+      interestStoppedAt: stock.interestStoppedAt,
+      debtStatus: stock.debtStatus,
+      interestRate: toNumber(stock.interestRate),
+      interestPrincipalBase: stock.interestPrincipalBase,
+      baseCost,
+      transportCost: toNumber(stock.transportCost),
+      accessoryCost: toNumber(stock.accessoryCost),
+      otherCosts: toNumber(stock.otherCosts),
+      interestPeriods: stock.interestPeriods.map((p) => ({
+        startDate: p.startDate,
+        endDate: p.endDate,
+        annualRate: toNumber(p.annualRate),
+        principalBase: p.principalBase,
+        principalAmount: toNumber(p.principalAmount),
+        calculatedInterest: toNumber(p.calculatedInterest),
+        daysCount: p.daysCount,
+      })),
+    };
+    const display = resolveStockInterestDisplay(interestInput, today);
+    // ดอกเบี้ย + จำนวนวัน "เฉพาะช่วงที่เลือก" (ไม่ใช่ยอดสะสมตลอดอายุรถ)
+    const inWindow = resolveStockInterestWindow(interestInput, today, windowStart, windowEnd);
 
     const interestStartDate = display.interestStartDate;
-    const daysCount = display.daysCount;
+    const lifetimeDaysCount = display.daysCount;
+    const daysCount = isWindowed ? inWindow.daysCount : display.daysCount;
     const currentRate = display.currentRate;
     const principalBase = display.principalBase;
     const principalAmount = display.principalAmount;
-    const totalAccumulatedInterest = display.accumulatedInterest;
+    const totalAccumulatedInterest = isWindowed ? inWindow.interest : display.accumulatedInterest;
     const isCalculatingNow = display.isCalculating;
     const vehicleInfo =
       `${stock.vehicleModel.brand} ${stock.vehicleModel.model} ${stock.vehicleModel.variant || ''} ${stock.vehicleModel.year}`.trim();
 
-    // ดอกเบี้ยที่จ่ายแล้ว = ใช้ค่าจาก paidInterestAmount ที่ track ไว้ใน Stock
-    // (ถูก update ทุกครั้งที่มีการจ่ายหนี้ผ่าน recordDebtPayment)
-    let paidInterest = toNumber(stock.paidInterestAmount);
+    // ดอกเบี้ยที่จ่ายแล้ว: มีช่วง = รวมเฉพาะงวดที่จ่ายในช่วงนั้น (StockDebtPayment.interestPaid),
+    // ไม่มีช่วง = ใช้ยอดสะสม paidInterestAmount ใน Stock ที่ recordDebtPayment update ไว้
+    let paidInterest = isWindowed
+      ? stock.debtPayments.reduce((sum, p) => {
+          const paidAt = parseDay(p.paymentDate).getTime();
+          if (paidAt < windowStartMs || paidAt > windowEndMs) return sum;
+          return sum + toNumber(p.interestPaid);
+        }, 0)
+      : toNumber(stock.paidInterestAmount);
 
-    // ดอกเบี้ยค้างชำระ = ดอกเบี้ยสะสมทั้งหมด - ดอกเบี้ยที่จ่ายแล้ว
+    // ดอกเบี้ยค้างชำระ = ดอกเบี้ย(ในช่วง) - ดอกเบี้ยที่จ่ายแล้ว(ในช่วง)
     let pendingInterest = Math.max(0, totalAccumulatedInterest - paidInterest);
 
     // ถ้าปิดหนี้แล้ว = ดอกเบี้ยทั้งหมดถือว่าจ่ายแล้ว
@@ -1144,7 +1165,7 @@ export async function getStockInterestReport(params: StockInterestParams) {
       interestStoppedAt: display.interestStoppedAt?.toISOString(),
       interestActionDate: display.interestActionDate?.toISOString() ?? '',
       interestStatusLabel: isCalculatingNow ? 'กำลังคิด' : 'หยุดแล้ว',
-      daysInStock: daysCount,
+      daysInStock: lifetimeDaysCount,
       daysCount,
       currentRate,
       interestRate: currentRate,
@@ -1163,6 +1184,12 @@ export async function getStockInterestReport(params: StockInterestParams) {
       remainingDebt: toNumber(stock.remainingDebt),
     };
   });
+
+  // เมื่อเลือกช่วงวันที่: ตัดรถที่ไม่ได้คิดดอกเบี้ยเลยในช่วงนั้นออก
+  // (หยุดคิดไปก่อนช่วง หรือเพิ่งเริ่มคิดหลังช่วง) และไม่มีการจ่ายดอกในช่วงด้วย
+  const stockItems = isWindowed
+    ? allStockItems.filter((s) => s.daysCount > 0 || s.paidInterest > 0)
+    : allStockItems;
 
   // Summary
   const totalInterest = stockItems.reduce((sum, s) => sum + s.accumulatedInterest, 0);
@@ -1187,10 +1214,13 @@ export async function getStockInterestReport(params: StockInterestParams) {
       ? totalInterest / (avgDaysInStock * totalStockCount)
       : 0;
 
-  // Calculate overdue vehicles (more than 90 days in stock)
-  const overdueVehicles = stockItems.filter((s) => s.daysCount > 90 && s.status !== 'SOLD').length;
+  // Calculate overdue vehicles (more than 90 days in stock).
+  // Uses lifetime days, not window days — a 1-month window would otherwise never flag anything.
+  const overdueVehicles = stockItems.filter(
+    (s) => s.daysInStock > 90 && s.status !== 'SOLD'
+  ).length;
   const overdueInterest = stockItems
-    .filter((s) => s.daysCount > 90 && s.status !== 'SOLD')
+    .filter((s) => s.daysInStock > 90 && s.status !== 'SOLD')
     .reduce((sum, s) => sum + s.accumulatedInterest, 0);
 
   // Chart data - by status

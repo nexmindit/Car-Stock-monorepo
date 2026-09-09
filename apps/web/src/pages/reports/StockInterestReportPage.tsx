@@ -124,7 +124,7 @@ export default function StockInterestReportPage() {
     },
     {
       key: 'accumulatedInterest',
-      label: 'ดบ. สะสม',
+      label: 'ดบ. ในช่วง',
       align: 'right' as const,
       render: (value: number) => (
         <span className="text-red-600">{formatCurrency(value)}</span>
@@ -159,7 +159,7 @@ export default function StockInterestReportPage() {
     { key: 'principalAmount', label: 'ต้นทุน/ฐาน' },
     { key: 'interestRate', label: 'ดอกเบี้ย %' },
     { key: 'daysCount', label: 'จำนวนวัน' },
-    { key: 'accumulatedInterest', label: 'ดบ. สะสม' },
+    { key: 'accumulatedInterest', label: 'ดบ. ในช่วง' },
     { key: 'paidInterest', label: 'จ่ายแล้ว' },
     { key: 'pendingInterest', label: 'ค้างชำระ' },
     { key: 'totalCostWithInterest', label: 'ต้นทุนรวมดอกเบี้ย' },
@@ -199,7 +199,9 @@ export default function StockInterestReportPage() {
           กลับ
         </button>
         <h1 className="text-2xl font-bold text-gray-900">รายงานดอกเบี้ยสต็อก</h1>
-        <p className="text-gray-600 mt-1">รายงานต้นทุนดอกเบี้ยสะสมของรถในสต็อก แยกตามสถานะการชำระ</p>
+        <p className="text-gray-600 mt-1">
+          รายงานดอกเบี้ยรถในสต็อก คิดเฉพาะช่วงวันที่ที่เลือก แยกตามสถานะการชำระ
+        </p>
       </div>
 
       {/* Date Filter */}
@@ -283,7 +285,7 @@ export default function StockInterestReportPage() {
             {/* Summary Cards */}
             <SummaryCardsGrid>
               <SummaryCard
-                title="ดอกเบี้ยสะสมทั้งหมด"
+                title="ดอกเบี้ยในช่วงที่เลือก"
                 value={formatCurrency(data.summary.totalInterest)}
                 subtitle={`${formatNumber(data.summary.totalVehicles)} คัน`}
                 icon={Percent}
@@ -333,7 +335,7 @@ export default function StockInterestReportPage() {
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">ดอกเบี้ยรายเดือน</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">ดอกเบี้ยในช่วง แยกตามเดือนที่รับรถ</h3>
                 <ReportBarChart
                   data={data.chartData.monthlyInterest}
                   xKey="month"
@@ -409,7 +411,7 @@ export default function StockInterestReportPage() {
                   </p>
                 </div>
                 <div className="p-4 bg-red-50 rounded-lg">
-                  <p className="text-sm text-red-600">ดอกเบี้ยสะสม</p>
+                  <p className="text-sm text-red-600">ดอกเบี้ยในช่วงที่เลือก</p>
                   <p className="text-xl font-semibold text-red-700">
                     +{formatCurrency(data.summary.totalInterest)}
                   </p>

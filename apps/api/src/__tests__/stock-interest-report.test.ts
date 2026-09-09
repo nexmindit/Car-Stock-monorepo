@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   type StockInterestStockInput,
   resolveStockInterestDisplay,
+  resolveStockInterestWindow,
 } from '../modules/interest/stock-interest-display';
 
 const today = new Date(2026, 8, 1); // 1 Sep 2026 local
@@ -164,5 +165,108 @@ describe('resolveStockInterestDisplay', () => {
     expect(row.daysCount).toBe(19);
     expect(row.currentRate).toBe(2.5);
     expect(row.accumulatedInterest).toBe(260);
+  });
+});
+
+// The report's date range is a *window*: only interest accrued between the two
+// dates counts. Ground truth below is the module formula by hand:
+// principal x (rate/100/365) x days, with days counted exclusively (daysBetween).
+describe('resolveStockInterestWindow', () => {
+  const rate3PerDay = 118_504 * (3 / 100 / 365);
+
+  it('counts only the days inside the window, not the whole time in stock', () => {
+    // Accruing since 20 Jan; window 16 Aug - 15 Sep; today is 1 Sep so accrual
+    // stops there. 16 Aug -> 1 Sep = 16 days.
+    const w = resolveStockInterestWindow(
+      stock(),
+      today,
+      new Date(2026, 7, 16),
+      new Date(2026, 8, 15)
+    );
+    expect(w.daysCount).toBe(16);
+    expect(w.interest).toBeCloseTo(rate3PerDay * 16, 6);
+    // ...and that is far below the 224-day lifetime figure the report used to show.
+    expect(w.interest).toBeLessThan(
+      resolveStockInterestDisplay(stock(), today).accumulatedInterest
+    );
+  });
+
+  it('returns zero for a stock that had not started accruing yet', () => {
+    const w = resolveStockInterestWindow(
+      stock(),
+      today,
+      new Date(2026, 0, 1),
+      new Date(2026, 0, 10)
+    );
+    expect(w).toEqual({ daysCount: 0, interest: 0 });
+  });
+
+  it('returns zero for a stock that stopped accruing before the window', () => {
+    const stopped = stock({ stopInterestCalc: true, interestStoppedAt: new Date(2026, 6, 1) });
+    const w = resolveStockInterestWindow(
+      stopped,
+      today,
+      new Date(2026, 7, 16),
+      new Date(2026, 8, 15)
+    );
+    expect(w).toEqual({ daysCount: 0, interest: 0 });
+  });
+
+  it('pro-rates a closed period the window only partly covers', () => {
+    const withClosedPeriod = stock({
+      interestPeriods: [
+        {
+          startDate: new Date(2026, 0, 20),
+          endDate: new Date(2026, 5, 1),
+          annualRate: 3,
+          principalBase: 'BASE_COST_ONLY',
+          principalAmount: 118_504,
+          calculatedInterest: 1000,
+          daysCount: 132,
+        },
+      ],
+    });
+    // 1 May -> 1 Jun = 31 days, so the stored 1000 for the full period must not be reused.
+    const w = resolveStockInterestWindow(
+      withClosedPeriod,
+      today,
+      new Date(2026, 4, 1),
+      new Date(2026, 5, 1)
+    );
+    expect(w.daysCount).toBe(31);
+    expect(w.interest).toBeCloseTo(rate3PerDay * 31, 6);
+    expect(w.interest).not.toBe(1000);
+  });
+
+  it('an unbounded window equals the lifetime accumulated interest', () => {
+    const resumed = stock({
+      interestPeriods: [
+        {
+          startDate: new Date(2026, 0, 20),
+          endDate: new Date(2026, 5, 1),
+          annualRate: 3,
+          principalBase: 'BASE_COST_ONLY',
+          principalAmount: 118_504,
+          calculatedInterest: 1000,
+          daysCount: 132,
+        },
+        {
+          startDate: new Date(2026, 7, 15),
+          endDate: null,
+          annualRate: 3.5,
+          principalBase: 'BASE_COST_ONLY',
+          principalAmount: 118_504,
+          calculatedInterest: 0,
+          daysCount: 0,
+        },
+      ],
+    });
+    const w = resolveStockInterestWindow(resumed, today, null, null);
+    // closed period keeps its stored 1000, open period accrues 15 Aug -> 1 Sep = 17 days
+    expect(w.interest).toBeCloseTo(1000 + 118_504 * (3.5 / 100 / 365) * 17, 6);
+    expect(w.interest).toBeCloseTo(
+      resolveStockInterestDisplay(resumed, today).accumulatedInterest,
+      6
+    );
   });
 });

@@ -445,6 +445,8 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         query.isCalculating === 'true' ? true : query.isCalculating === 'false' ? false : undefined;
 
       const result = await reportsService.getStockInterestReport({
+        startDate: query.startDate ? new Date(query.startDate) : undefined,
+        endDate: query.endDate ? new Date(query.endDate) : undefined,
         status: query.status as any,
         isCalculating,
         brand: query.brand,
@@ -492,12 +494,17 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         query.isCalculating === 'true' ? true : query.isCalculating === 'false' ? false : undefined;
 
       const result = await reportsService.getStockInterestReport({
+        startDate: query.startDate ? new Date(query.startDate) : undefined,
+        endDate: query.endDate ? new Date(query.endDate) : undefined,
         status: query.status as any,
         isCalculating,
         brand: query.brand,
       });
 
-      const dateRange = `ข้อมูล ณ วันที่ ${formatThaiDate(new Date(), 'full')}`;
+      const dateRange =
+        query.startDate && query.endDate
+          ? `ช่วงวันที่ ${formatThaiDate(new Date(query.startDate), 'full')} ถึง ${formatThaiDate(new Date(query.endDate), 'full')}`
+          : `ข้อมูล ณ วันที่ ${formatThaiDate(new Date(), 'full')}`;
 
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
