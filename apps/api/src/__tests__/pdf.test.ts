@@ -26,6 +26,7 @@ import type {
 mock.module('../modules/settings/settings.service', () => ({
   settingsService: {
     getSettings: () => Promise.resolve(null),
+    getPrintLayout: () => Promise.resolve(null),
   },
 }));
 

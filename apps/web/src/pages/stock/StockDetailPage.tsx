@@ -64,6 +64,7 @@ export default function StockDetailPage() {
   const canUpdateStatus = hasPermission('STOCK_UPDATE');
   const canRecalculateInterest = hasPermission('INTEREST_UPDATE');
   const canCreateSale = hasPermission('SALE_CREATE');
+  const canPrintCard = hasPermission('DOC_CAR_DETAIL_CARD');
   const canViewCost = hasPermission('STOCK_VIEW_COST');
 
   useEffect(() => {
@@ -480,6 +481,14 @@ export default function StockDetailPage() {
                 <FileText className="w-4 h-4 mr-2" />
                 พิมพ์การ์ดรถยนต์
               </button>
+              {canPrintCard && (
+                <Link
+                  to={`/stock/${stock.id}/card-layout`}
+                  className="block w-full px-4 py-2 border border-dashed border-gray-300 text-gray-500 text-center rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  ปรับตำแหน่งการ์ด
+                </Link>
+              )}
             </div>
           </div>
 

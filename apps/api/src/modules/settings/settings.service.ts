@@ -1,5 +1,5 @@
 import { db } from '../../lib/db';
-import { CompanySettingsDTO } from './types';
+import type { CompanySettingsDTO } from './types';
 
 export class SettingsService {
   private static instance: SettingsService;
@@ -25,7 +25,7 @@ export class SettingsService {
 
   /**
    * Update or Create company settings
-   * Since we only want one record, we upsert based on ID if we have it, 
+   * Since we only want one record, we upsert based on ID if we have it,
    * or we check if one exists and update it, otherwise create.
    */
   async updateSettings(data: CompanySettingsDTO) {
@@ -41,6 +41,20 @@ export class SettingsService {
         data,
       });
     }
+  }
+  /** Saved print layout for `key` (e.g. 'vehicle-card'), or null when never saved. */
+  async getPrintLayout(key: string): Promise<unknown | null> {
+    const row = await db.printLayout.findUnique({ where: { key } });
+    return row?.data ?? null;
+  }
+
+  async savePrintLayout(key: string, data: object) {
+    const row = await db.printLayout.upsert({
+      where: { key },
+      create: { key, data },
+      update: { data },
+    });
+    return row.data;
   }
 }
 

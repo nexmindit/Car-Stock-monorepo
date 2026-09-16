@@ -5,6 +5,12 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { VehicleCardFieldKey } from '@car-stock/shared/constants';
+import {
+  VEHICLE_CARD_FONTS,
+  type VehicleCardLayout,
+  mergeVehicleCardLayout,
+} from '@car-stock/shared/schemas';
 import Handlebars from 'handlebars';
 import puppeteer, { type Browser } from 'puppeteer-core';
 import {
@@ -777,38 +783,80 @@ export class PdfService {
   }
 
   /**
-   * Generate Vehicle Card PDF (การ์ดรายละเอียดรถยนต์)
+   * Resolve the printed value for each vehicle-card field and pair it with its
+   * saved position. The template only iterates `fields`; the editor's
+   * `format=json` uses the same resolver so screen and paper never diverge.
+   */
+  public buildVehicleCardContext(data: VehicleCardData, layout: VehicleCardLayout) {
+    const car = data.car ?? ({} as VehicleCardData['car']);
+    const costs = data.costs ?? ({} as VehicleCardData['costs']);
+    const values: Record<VehicleCardFieldKey, string> = {
+      model: [car.model, car.variant].filter(Boolean).join(' '),
+      engineNo: car.engineNo ?? '',
+      chassisNo: car.chassisNo ?? '',
+      color: car.color ?? '',
+      stockNumber: data.stockNumber ?? '',
+      orderDate: data.orderDate ?? '',
+      beforeVatInt: costs.beforeVatInt ?? '',
+      beforeVatDec: costs.beforeVatDec ?? '',
+      vatAmountInt: costs.vatAmountInt ?? '',
+      vatAmountDec: costs.vatAmountDec ?? '',
+      totalWithVatInt: costs.totalWithVatInt ?? '',
+      totalWithVatDec: costs.totalWithVatDec ?? '',
+    };
+    const fields = (Object.keys(values) as VehicleCardFieldKey[]).map((key) => ({
+      key,
+      ...layout.fields[key],
+      value: values[key],
+    }));
+    return {
+      header: data.header,
+      layout,
+      fontFamilyCss: VEHICLE_CARD_FONTS[layout.fontFamily],
+      fields,
+      values,
+    };
+  }
+
+  private async loadVehicleCardLayout(): Promise<VehicleCardLayout> {
+    // Printing must keep working even if the print_layouts migration has not
+    // been applied on this tenant yet (P2021) — fall back to the defaults.
+    try {
+      const saved = await import('../settings/settings.service').then((m) =>
+        m.settingsService.getPrintLayout('vehicle-card')
+      );
+      return mergeVehicleCardLayout(saved);
+    } catch (error) {
+      console.warn('⚠️ Vehicle card layout unavailable, using defaults:', error);
+      return mergeVehicleCardLayout(null);
+    }
+  }
+
+  /**
+   * Generate Vehicle Card PDF (การ์ดรายละเอียดรถยนต์).
+   * Paper 27 × 21 cm, zero margin — field positions are absolute from the paper corner.
    */
   public async generateVehicleCard(data: VehicleCardData): Promise<Buffer> {
-    // Custom stock: 27 × 21 cm; L 10mm / R 0; top 13mm / bottom 6mm → content 191mm
-    return this.generatePdf(PdfTemplateType.VEHICLE_CARD, data, {
+    const ctx = this.buildVehicleCardContext(data, await this.loadVehicleCardLayout());
+    return this.generatePdf(PdfTemplateType.VEHICLE_CARD, ctx, {
       width: '27cm',
       height: '21cm',
       padding: '0mm',
-      margin: {
-        top: '13mm',
-        right: '0mm',
-        bottom: '6mm',
-        left: '10mm',
-      },
+      margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
     });
   }
 
   /**
-   * Render Vehicle Card as HTML for browser printing (การ์ดรายละเอียดรถยนต์).
-   *
-   * Stock paper: 27 × 21 cm. Content width 25.2 cm (right outer edge).
-   * Header 7 cols: 4.4 + 4.3 + 4.3 + 4.2 + 2.6 + 2.6 + 2.8 = 25.2 cm.
+   * Render Vehicle Card as HTML for browser printing.
    * @page must match real paper so the driver does not scale to Letter/A4.
    */
   public async renderVehicleCardHtml(data: VehicleCardData): Promise<string> {
-    return this.renderHtml(PdfTemplateType.VEHICLE_CARD, data, {
-      // table grid 25.2cm (right outer edge +4mm from 24.8)
-      width: '25.2cm',
+    const ctx = this.buildVehicleCardContext(data, await this.loadVehicleCardLayout());
+    return this.renderHtml(PdfTemplateType.VEHICLE_CARD, ctx, {
+      width: '27cm',
       height: '21cm',
       padding: '0mm',
-      // top right bottom left — content band 210−13−6 = 191mm
-      htmlPage: { size: '27cm 21cm', margin: '13mm 0mm 6mm 10mm' },
+      htmlPage: { size: '27cm 21cm', margin: '0' },
     });
   }
 

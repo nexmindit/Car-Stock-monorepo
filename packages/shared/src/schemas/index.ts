@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { CREATE_STOCK_STATUSES, INTEREST_RATE_FRACTION_MAX } from '../constants';
+import {
+  CREATE_STOCK_STATUSES,
+  INTEREST_RATE_FRACTION_MAX,
+  VEHICLE_CARD_FIELDS,
+  VEHICLE_CARD_PAPER,
+  type VehicleCardFieldKey,
+} from '../constants';
 
 // ============================================
 // Enums as Zod schemas
@@ -144,17 +150,20 @@ export const UpdateUserSchema = z.object({
 // Customer Schemas
 // ============================================
 
-const optionalPassportNumber = z.preprocess((value) => {
-  if (value === '' || value === null || value === undefined) return null;
-  if (typeof value === 'string') return value.replace(/\s+/g, '');
-  return value;
-}, z
-  .string()
-  .trim()
-  .max(20, 'Passport number is too long')
-  .regex(/^[A-Za-z0-9-]+$/, 'Invalid passport number')
-  .transform((s) => s.toUpperCase())
-  .nullable());
+const optionalPassportNumber = z.preprocess(
+  (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    if (typeof value === 'string') return value.replace(/\s+/g, '');
+    return value;
+  },
+  z
+    .string()
+    .trim()
+    .max(20, 'Passport number is too long')
+    .regex(/^[A-Za-z0-9-]+$/, 'Invalid passport number')
+    .transform((s) => s.toUpperCase())
+    .nullable()
+);
 
 export const CustomerSchema = z.object({
   id: z.string(),
@@ -786,3 +795,101 @@ export const CampaignClaimReportResponseSchema = z.object({
 export const VehicleTypeFilterSchema = z.object({
   vehicleType: VehicleTypeSchema.optional(),
 });
+
+// ============================================================================
+// Vehicle card print layout (positions in mm from the paper's top-left)
+// ============================================================================
+
+export const VehicleCardFieldSchema = z.object({
+  x: z.number().min(0).max(VEHICLE_CARD_PAPER.w),
+  y: z.number().min(0).max(VEHICLE_CARD_PAPER.h),
+  w: z.number().min(1).max(VEHICLE_CARD_PAPER.w),
+  align: z.enum(['left', 'center', 'right']),
+  bold: z.boolean(),
+  /** px; omitted = the layout's fontSize */
+  fontSize: z.number().min(5).max(20).optional(),
+});
+
+export const VEHICLE_CARD_FONTS = {
+  Sarabun: 'Sarabun, Kanit, sans-serif',
+  Kanit: 'Kanit, Sarabun, sans-serif',
+  Tahoma: 'Tahoma, Sarabun, sans-serif',
+} as const;
+
+export type VehicleCardField = z.infer<typeof VehicleCardFieldSchema>;
+
+const fieldKeys = Object.keys(VEHICLE_CARD_FIELDS) as [
+  VehicleCardFieldKey,
+  ...VehicleCardFieldKey[],
+];
+
+export const VehicleCardLayoutSchema = z.object({
+  /** Whole-sheet shift, mm — the printer-feed calibration knob. */
+  offsetX: z.number().min(-50).max(50),
+  offsetY: z.number().min(-50).max(50),
+  fontSize: z.number().min(5).max(20),
+  fontFamily: z.enum(['Sarabun', 'Kanit', 'Tahoma']),
+  fields: z.record(z.enum(fieldKeys), VehicleCardFieldSchema),
+});
+
+// z.record over an enum infers Partial<>; the layout always carries every field.
+export type VehicleCardLayout = Omit<z.infer<typeof VehicleCardLayoutSchema>, 'fields'> & {
+  fields: Record<VehicleCardFieldKey, VehicleCardField>;
+};
+
+// Derived from the old table grid: left margin 10 + top 13 + title 7 → grid at y=20, rows 6.6mm.
+export const DEFAULT_VEHICLE_CARD_LAYOUT: VehicleCardLayout = {
+  offsetX: 0,
+  offsetY: 0,
+  fontSize: 8.5,
+  fontFamily: 'Sarabun',
+  fields: {
+    model: { x: 54, y: 26.6, w: 43, align: 'center', bold: false },
+    engineNo: { x: 97, y: 26.6, w: 43, align: 'center', bold: false },
+    chassisNo: { x: 140, y: 26.6, w: 42, align: 'center', bold: false },
+    color: { x: 182, y: 26.6, w: 26, align: 'center', bold: false },
+    stockNumber: { x: 234, y: 26.6, w: 28, align: 'center', bold: true },
+    orderDate: { x: 35, y: 33.2, w: 35, align: 'left', bold: true },
+    beforeVatInt: { x: 70, y: 46.4, w: 30, align: 'right', bold: false },
+    beforeVatDec: { x: 100, y: 46.4, w: 7.5, align: 'center', bold: false },
+    vatAmountInt: { x: 70, y: 53, w: 30, align: 'right', bold: false },
+    vatAmountDec: { x: 100, y: 53, w: 7.5, align: 'center', bold: false },
+    totalWithVatInt: { x: 70, y: 86, w: 30, align: 'right', bold: true },
+    totalWithVatDec: { x: 100, y: 86, w: 7.5, align: 'center', bold: true },
+  },
+};
+
+/** Fill any missing field from the default so a partially-saved layout still prints. */
+export function mergeVehicleCardLayout(saved: unknown): VehicleCardLayout {
+  // Parse each value on its own so one stale/invalid entry (e.g. a renamed
+  // field key in an old row) only loses itself, not every calibrated position.
+  const pick = <T>(schema: z.ZodType<T>, v: unknown): T | undefined => {
+    const r = schema.safeParse(v);
+    return r.success ? r.data : undefined;
+  };
+  const obj = (v: unknown): Record<string, unknown> =>
+    v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  const s = obj(saved);
+  const sf = obj(s.fields);
+  const shape = VehicleCardLayoutSchema.shape;
+  const fields = {} as VehicleCardLayout['fields'];
+  for (const key of fieldKeys) {
+    const d = DEFAULT_VEHICLE_CARD_LAYOUT.fields[key];
+    const f: Partial<VehicleCardField> = pick(VehicleCardFieldSchema.partial(), sf[key]) ?? {};
+    fields[key] = {
+      x: f.x ?? d.x,
+      y: f.y ?? d.y,
+      w: f.w ?? d.w,
+      align: f.align ?? d.align,
+      bold: f.bold ?? d.bold,
+      ...(f.fontSize != null ? { fontSize: f.fontSize } : {}),
+    };
+  }
+  return {
+    offsetX: pick(shape.offsetX, s.offsetX) ?? DEFAULT_VEHICLE_CARD_LAYOUT.offsetX,
+    offsetY: pick(shape.offsetY, s.offsetY) ?? DEFAULT_VEHICLE_CARD_LAYOUT.offsetY,
+    fontSize: pick(shape.fontSize, s.fontSize) ?? DEFAULT_VEHICLE_CARD_LAYOUT.fontSize,
+    fontFamily: pick(shape.fontFamily, s.fontFamily) ?? DEFAULT_VEHICLE_CARD_LAYOUT.fontFamily,
+    fields,
+  };
+}

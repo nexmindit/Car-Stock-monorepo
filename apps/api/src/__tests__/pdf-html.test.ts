@@ -3,11 +3,17 @@ import type { VehicleCardData, CompanyHeader } from '../modules/pdf/types';
 import { PdfTemplateType } from '../modules/pdf/types';
 
 // Mock settings to avoid DB dependency (same pattern as pdf.test.ts)
+let savedLayout: unknown = null;
 mock.module('../modules/settings/settings.service', () => ({
-  settingsService: { getSettings: () => Promise.resolve(null) },
+  settingsService: {
+    getSettings: () => Promise.resolve(null),
+    getPrintLayout: () =>
+      savedLayout instanceof Error ? Promise.reject(savedLayout) : Promise.resolve(savedLayout),
+  },
 }));
 
 const { pdfService } = await import('../modules/pdf/pdf.service');
+const { DEFAULT_VEHICLE_CARD_LAYOUT } = await import('@car-stock/shared/schemas');
 
 const mockHeader: CompanyHeader = {
   logoBase64: '',
@@ -83,8 +89,65 @@ describe('Vehicle card HTML print', () => {
     // calling renderHtml without an htmlPage option must never inject the
     // @page rule (the only place that string is emitted by our code), while
     // still producing a real render with the card data present.
-    const html = await pdfService.renderHtml(PdfTemplateType.VEHICLE_CARD, cardData);
+    const ctx = pdfService.buildVehicleCardContext(cardData, DEFAULT_VEHICLE_CARD_LAYOUT);
+    const html = await pdfService.renderHtml(PdfTemplateType.VEHICLE_CARD, ctx);
     expect(html).not.toContain('@page'); // opt-in gate off → no page-size rule injected
     expect(html).toContain('STK-HTML-001'); // still a real render
+  });
+
+  it('places each field at its saved mm position and falls back to defaults for the rest', async () => {
+    savedLayout = { offsetX: 1.5, fields: { stockNumber: { x: 200, y: 50 } } };
+    try {
+      const html = await pdfService.renderVehicleCardHtml(cardData);
+      expect(html).toContain('translate(1.5mm, 0mm)'); // saved whole-sheet offset, default Y
+      expect(html).toMatch(
+        /top: 50mm; left: 200mm; width: 28mm; text-align: center; font-weight: bold;">STK-HTML-001</
+      );
+      const d = DEFAULT_VEHICLE_CARD_LAYOUT.fields.engineNo;
+      expect(html).toContain(
+        `top: ${d.y}mm; left: ${d.x}mm; width: ${d.w}mm; text-align: ${d.align};">ENG-HTML<`
+      );
+    } finally {
+      savedLayout = null;
+    }
+  });
+
+  it('keeps the valid parts of a saved layout when one entry is stale or invalid', async () => {
+    savedLayout = {
+      offsetX: 2,
+      fontSize: 99, // out of range → default 8.5, but must not wipe the rest
+      fields: { stockNumber: { x: 200, y: 50 }, removedKey: { x: 1, y: 1 } },
+    };
+    try {
+      const html = await pdfService.renderVehicleCardHtml(cardData);
+      expect(html).toContain('translate(2mm, 0mm)');
+      expect(html).toContain(`font-size: ${DEFAULT_VEHICLE_CARD_LAYOUT.fontSize}px;`);
+      expect(html).toMatch(/top: 50mm; left: 200mm;[^>]*>STK-HTML-001</);
+    } finally {
+      savedLayout = null;
+    }
+  });
+
+  it('still prints with defaults when the print_layouts table is unavailable', async () => {
+    savedLayout = new Error('P2021: table print_layouts does not exist');
+    try {
+      const html = await pdfService.renderVehicleCardHtml(cardData);
+      expect(html).toContain('translate(0mm, 0mm)');
+      expect(html).toContain('STK-HTML-001');
+    } finally {
+      savedLayout = null;
+    }
+  });
+
+  it('applies the sheet font family and a per-field font size override', async () => {
+    savedLayout = { fontFamily: 'Kanit', fontSize: 9, fields: { color: { fontSize: 12 } } };
+    try {
+      const html = await pdfService.renderVehicleCardHtml(cardData);
+      expect(html).toContain('font-size: 9px; font-family: Kanit, Sarabun, sans-serif;');
+      expect(html).toMatch(/text-align: center; font-size: 12px;">แดง</); // per-field override
+      expect(html).toMatch(/text-align: center;">ENG-HTML</); // no override → inherits sheet size
+    } finally {
+      savedLayout = null;
+    }
   });
 });

@@ -6,6 +6,7 @@
 import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from '@car-stock/shared/constants';
 import { computeDeliveryTotal, sumCustomCustomerCharges } from '@car-stock/shared/finance';
 import { splitVat } from '@car-stock/shared/formulas';
+import { DEFAULT_VEHICLE_CARD_LAYOUT } from '@car-stock/shared/schemas';
 import { Elysia, t } from 'elysia';
 import { generateContractNumber, getCurrentContractNumberFormat } from '../../lib/contractNumber';
 import { db } from '../../lib/db';
@@ -373,7 +374,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         sale.totalAmount,
         carDiscount,
         sumCustomCustomerCharges(sale.financeLines),
-        sale.stock?.expectedSalePrice,
+        sale.stock?.expectedSalePrice
       );
       // เงินดาวน์ = sale.downPayment only. เงินจอง = depositAmount (own row).
       // CASH รวมเงินออกรถ = คงเหลือ − เงินจอง + จดทะเบียน; FINANCE = ดาวน์ − ส่วนลดดาวน์ + fees.
@@ -653,7 +654,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
             sale.totalAmount,
             carDiscount,
             sumCustomCustomerCharges(sale.financeLines),
-            sale.stock?.expectedSalePrice,
+            sale.stock?.expectedSalePrice
           );
           const deposit = Number(sale.depositAmount ?? 0);
           const downPayment = Number(sale.downPayment ?? sale.depositAmount ?? 0);
@@ -1128,6 +1129,12 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         },
         location: stock.parkingSlot || '-',
       };
+
+      // Layout editor: the resolved field values for this car, no rendering.
+      if (query.format === 'json') {
+        const { values } = pdfService.buildVehicleCardContext(data, DEFAULT_VEHICLE_CARD_LAYOUT);
+        return { success: true, data: { values } };
+      }
 
       if (query.format === 'html') {
         set.headers['Content-Type'] = 'text/html; charset=utf-8';

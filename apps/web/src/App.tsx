@@ -23,6 +23,7 @@ const VehicleDetailPage = React.lazy(() => import('./pages/vehicles/VehicleDetai
 const StockListPage = React.lazy(() => import('./pages/stock/StockListPage'));
 const StockFormPage = React.lazy(() => import('./pages/stock/StockFormPage'));
 const StockDetailPage = React.lazy(() => import('./pages/stock/StockDetailPage'));
+const VehicleCardLayoutPage = React.lazy(() => import('./pages/stock/VehicleCardLayoutPage'));
 const InterestListPage = React.lazy(() =>
   import('./pages/interest').then((m) => ({ default: m.InterestListPage }))
 );
@@ -241,6 +242,14 @@ function App() {
                       element={
                         <ProtectedRoute allowedRoles={P.STOCK_VIEW}>
                           <StockDetailPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/stock/:id/card-layout"
+                      element={
+                        <ProtectedRoute allowedRoles={P.DOC_CAR_DETAIL_CARD}>
+                          <VehicleCardLayoutPage />
                         </ProtectedRoute>
                       }
                     />

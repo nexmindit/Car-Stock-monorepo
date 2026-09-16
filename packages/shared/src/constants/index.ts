@@ -22,8 +22,7 @@ export const COMPANY = {
   },
   phone: '044-272-888',
   fax: '044-271-224',
-  fullAddress:
-    '438/288 ถนนมิตรภาพ-หนองคาย ตำบลในเมือง อำเภอเมือง จังหวัดนครราชสีมา 30000',
+  fullAddress: '438/288 ถนนมิตรภาพ-หนองคาย ตำบลในเมือง อำเภอเมือง จังหวัดนครราชสีมา 30000',
 } as const;
 
 // ============================================
@@ -67,9 +66,7 @@ export type CreateStockStatusValue = (typeof CREATE_STOCK_STATUSES)[number];
 export const MANUAL_STOCK_STATUS_TRANSITIONS = {
   AVAILABLE: ['DEMO'],
   DEMO: ['AVAILABLE'],
-} as const satisfies Partial<
-  Record<StockStatusValue, readonly CreateStockStatusValue[]>
->;
+} as const satisfies Partial<Record<StockStatusValue, readonly CreateStockStatusValue[]>>;
 
 /** Targets reachable by a manual status change from `from`, or undefined if none. */
 export function getManualStockStatusTargets(
@@ -418,3 +415,31 @@ export const PERMISSIONS = {
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
+
+// ============================================
+// Vehicle card (การ์ดรถยนต์) print layout
+// ============================================
+
+/** Values printed onto the pre-printed green card, with Thai labels for the layout editor. */
+export const VEHICLE_CARD_FIELDS = {
+  model: 'รุ่น',
+  engineNo: 'เลขเครื่อง',
+  chassisNo: 'เลขตัวถัง',
+  color: 'สี',
+  stockNumber: 'เลขสต็อก',
+  orderDate: 'วันที่สั่งซื้อ',
+  beforeVatInt: 'ราคาก่อน VAT (บาท)',
+  beforeVatDec: 'ราคาก่อน VAT (สต.)',
+  vatAmountInt: 'VAT (บาท)',
+  vatAmountDec: 'VAT (สต.)',
+  totalWithVatInt: 'รวม (บาท)',
+  totalWithVatDec: 'รวม (สต.)',
+} as const;
+
+export type VehicleCardFieldKey = keyof typeof VEHICLE_CARD_FIELDS;
+
+/** Custom-cut card stock, mm. */
+export const VEHICLE_CARD_PAPER = { w: 270, h: 210 } as const;
+
+/** Every printed value box is one row of the pre-printed grid tall, mm. */
+export const VEHICLE_CARD_FIELD_HEIGHT = 6.6;

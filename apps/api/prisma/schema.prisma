@@ -623,6 +623,14 @@ model CompanySettings {
   @@map("company_settings")
 }
 
+model PrintLayout {
+  key       String   @id
+  data      Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("print_layouts")
+}
+
 model BankAccount {
   id            String   @id @default(cuid())
   bankName      String   @map("bank_name")
