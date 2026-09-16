@@ -44,8 +44,15 @@ export class SettingsService {
   }
   /** Saved print layout for `key` (e.g. 'vehicle-card'), or null when never saved. */
   async getPrintLayout(key: string): Promise<unknown | null> {
-    const row = await db.printLayout.findUnique({ where: { key } });
-    return row?.data ?? null;
+    // Stale Prisma client (no printLayout) or missing table (P2021) must not
+    // 500 the editor — same fallback printing already uses.
+    try {
+      const row = await db.printLayout.findUnique({ where: { key } });
+      return row?.data ?? null;
+    } catch (error) {
+      console.warn('⚠️ Print layout unavailable:', error);
+      return null;
+    }
   }
 
   async savePrintLayout(key: string, data: object) {
