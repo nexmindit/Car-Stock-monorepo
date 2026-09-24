@@ -13,7 +13,12 @@ import { db } from '../../lib/db';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { projectCampaignClaimForPdf } from '../reports/campaign-claim-pdf';
 import { reportsService } from '../reports/reports.service';
-import { formatThaiDate, numberToThaiText, resolveThankYouLetterDate } from './helpers';
+import {
+  formatThaiDate,
+  numberToThaiText,
+  resolveThankYouLetterDate,
+  vehicleCardEngineNo,
+} from './helpers';
 import { pdfService } from './pdf.service';
 import {
   computeThankYouFinancials,
@@ -1106,7 +1111,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
           year: stock.vehicleModel?.year?.toString() || '-',
           color: stock.exteriorColor || '-',
           interiorColor: stock.interiorColor || '-',
-          engineNo: stock.engineNumber || '-',
+          engineNo: vehicleCardEngineNo(stock),
           chassisNo: stock.vin || '-',
           motorNumbers: [stock.motorNumber1, stock.motorNumber2].filter(Boolean).join(' / '),
           ccOrKw: '-',

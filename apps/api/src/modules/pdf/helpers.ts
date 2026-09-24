@@ -287,6 +287,24 @@ export function safeString(value: string | null | undefined, defaultValue: strin
 }
 
 /**
+ * Engine slot on the vehicle card. EV/hybrid stock often has no engine number;
+ * print the motor number in that box instead of "-".
+ */
+export function vehicleCardEngineNo(stock: {
+  engineNumber?: string | null;
+  motorNumber1?: string | null;
+  motorNumber2?: string | null;
+}): string {
+  const filled = (value?: string | null) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : '';
+  };
+  return (
+    filled(stock.engineNumber) || filled(stock.motorNumber1) || filled(stock.motorNumber2) || '-'
+  );
+}
+
+/**
  * Format percentage
  */
 export function formatPercentage(value: number | string): string {
