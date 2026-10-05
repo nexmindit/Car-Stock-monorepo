@@ -83,13 +83,6 @@ export const CampaignFormPage: React.FC = () => {
       if (start > end) {
         newErrors.endDate = 'วันสิ้นสุดต้องมากกว่าวันเริ่มต้น';
       }
-      if (!isEdit) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (end < today) {
-          newErrors.endDate = 'วันสิ้นสุดต้องเป็นวันนี้หรือในอนาคต';
-        }
-      }
     }
     if (formData.vehicleModelIds.length === 0) {
       newErrors.vehicleModelIds = 'กรุณาเลือกอย่างน้อย 1 รุ่นรถยนต์';

@@ -4,6 +4,7 @@ import { Prisma, CampaignStatus } from '@prisma/client';
 import { formulaSubsidyAmount, sumCampaignSubsidies } from '@car-stock/shared/formulas';
 import { diffModelSet } from './campaign-model-set.helpers';
 import { buildClonedCampaign, type CloneSource } from './campaign-duplicate.helpers';
+import { campaignFormulasService } from './campaign-formulas.service';
 
 /**
  * Derive the display status of a campaign at read time. The stored
@@ -203,14 +204,9 @@ class CampaignsService {
       throw new BadRequestError('วันเริ่มต้นต้องอยู่ก่อนวันสิ้นสุด');
     }
 
-    // Block creating a campaign whose window is already closed — it would
-    // immediately auto-project to ENDED and could never accept any sales.
-    // Compare end-of-day so a campaign ending "today" is still valid.
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    if (campaignData.endDate && campaignData.endDate < todayStart) {
-      throw new BadRequestError('วันสิ้นสุดต้องเป็นวันนี้หรือในอนาคต');
-    }
+    // Past windows are allowed: dealers set campaigns up retroactively when the
+    // brand announces them late. Existing sales get linked on activation via
+    // tagRetroactiveSales().
 
     const campaign = await db.$transaction(async (tx) => {
       const created = await tx.campaign.create({
@@ -537,10 +533,68 @@ class CampaignsService {
       return updated;
     });
 
+    await this.tagRetroactiveSales(id);
+
     return {
       ...campaign,
       vehicleModels: campaign.vehicleModels.map((vm) => vm.vehicleModel),
     };
+  }
+
+  /**
+   * Link untagged sales that fall inside an ACTIVE campaign's window. Sales are
+   * normally auto-tagged at creation only if a campaign is active *at that
+   * moment*, so a campaign set up retroactively would otherwise have an empty
+   * report forever. Sales already tagged to another campaign are left alone.
+   */
+  private async tagRetroactiveSales(campaignId: string) {
+    const campaign = await db.campaign.findUnique({
+      where: { id: campaignId },
+      select: {
+        status: true,
+        startDate: true,
+        endDate: true,
+        vehicleModels: { select: { vehicleModelId: true } },
+      },
+    });
+    if (!campaign || campaign.status !== 'ACTIVE') return;
+    const modelIds = new Set(campaign.vehicleModels.map((vm) => vm.vehicleModelId));
+    if (modelIds.size === 0) return;
+
+    // ponytail: endDate is stored as a date-only midnight; +1 day makes the last day inclusive.
+    const endExclusive = new Date(campaign.endDate.getTime() + 24 * 60 * 60 * 1000);
+    const candidates = await db.sale.findMany({
+      where: {
+        campaignId: null,
+        status: { notIn: ['CANCELLED'] },
+        createdAt: { gte: campaign.startDate, lt: endExclusive },
+        OR: [
+          { vehicleModelId: { in: [...modelIds] } },
+          { stock: { vehicleModelId: { in: [...modelIds] } } },
+        ],
+      },
+      select: {
+        id: true,
+        stockId: true,
+        vehicleModelId: true,
+        stock: { select: { vehicleModelId: true } },
+      },
+    });
+
+    for (const sale of candidates) {
+      // Same effective-model rule as the report / orphan guard: stock wins.
+      const vehicleModelId = sale.stock?.vehicleModelId ?? sale.vehicleModelId;
+      if (!vehicleModelId || !modelIds.has(vehicleModelId)) continue;
+      const campaignSubsidySnapshot = await campaignFormulasService.computeSaleSubsidySnapshot({
+        campaignId,
+        vehicleModelId,
+        stockId: sale.stockId,
+      });
+      await db.sale.update({
+        where: { id: sale.id },
+        data: { campaignId, campaignSubsidySnapshot },
+      });
+    }
   }
 
   /**
@@ -633,6 +687,8 @@ class CampaignsService {
         vehicleModelId,
       },
     });
+
+    await this.tagRetroactiveSales(campaignId);
 
     return { success: true };
   }
