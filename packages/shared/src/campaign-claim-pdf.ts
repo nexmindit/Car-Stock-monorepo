@@ -3,7 +3,7 @@
  * Web table and PDF both project onto these headers so they stay in sync.
  */
 
-/** Fixed expense headers for the brand submission form. */
+/** Canonical headers that legacy formula names fold into (see resolvePdfClaimExpenseKey). */
 export const PDF_CLAIM_EXPENSE_COLUMNS = [
   'Marketing 1%',
   'เปิดบูธ',
@@ -47,7 +47,7 @@ export interface CampaignClaimReportForPdf {
 }
 
 export interface CampaignClaimPdfProjection {
-  expenseColumns: PdfClaimExpenseColumn[];
+  expenseColumns: string[];
   rows: Array<{
     no: number;
     customerName: string;
@@ -66,21 +66,23 @@ export interface CampaignClaimPdfProjection {
 }
 
 /**
- * Project claim report rows onto the fixed PDF expense column set.
- * Always emits all 5 headers; missing formulas → null cells.
- * Totals recompute from projected cells only (unmapped lines excluded).
+ * Project claim report rows for web table + PDF.
+ * One column per campaign formula name (editor-driven); legacy aliases fold into
+ * their canonical header. Unknown names are kept as-is — dropping them hid every
+ * formula not named exactly like the 5 demo headers (report showed 0.00).
  */
 export function projectCampaignClaimForPdf(
   report: CampaignClaimReportForPdf
 ): CampaignClaimPdfProjection {
-  const expenseColumns = [...PDF_CLAIM_EXPENSE_COLUMNS];
+  const keys = report.expenseColumns.map((name) => resolvePdfClaimExpenseKey(name) ?? name.trim());
+  const expenseColumns = [...new Set(keys)];
 
   const rows = report.rows.map((r) => {
     const amounts = new Map<string, number>();
-    for (let i = 0; i < report.expenseColumns.length; i++) {
-      const key = resolvePdfClaimExpenseKey(report.expenseColumns[i] ?? '');
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
       const val = r.cells[i];
-      if (!key || val == null) continue;
+      if (val == null) continue;
       amounts.set(key, round2((amounts.get(key) ?? 0) + val));
     }
     const cells = expenseColumns.map((col) => {

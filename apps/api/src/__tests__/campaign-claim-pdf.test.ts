@@ -1,7 +1,6 @@
 // apps/api/src/__tests__/campaign-claim-pdf.test.ts
 import { describe, expect, test } from 'bun:test';
 import {
-  PDF_CLAIM_EXPENSE_COLUMNS,
   projectCampaignClaimForPdf,
   resolvePdfClaimExpenseKey,
 } from '../modules/reports/campaign-claim-pdf';
@@ -85,18 +84,17 @@ describe('resolvePdfClaimExpenseKey', () => {
 });
 
 describe('projectCampaignClaimForPdf', () => {
-  test('always emits the fixed 5 expense headers', () => {
+  test('no sales → no expense headers', () => {
     const report = buildCampaignClaimReport([]);
     const pdf = projectCampaignClaimForPdf(report);
-    expect(pdf.expenseColumns).toEqual([...PDF_CLAIM_EXPENSE_COLUMNS]);
-    expect(pdf.expenseColumns).toHaveLength(5);
+    expect(pdf.expenseColumns).toEqual([]);
     expect(pdf.rows).toEqual([]);
-    expect(pdf.summary.columnTotals).toEqual([0, 0, 0, 0, 0]);
+    expect(pdf.summary.columnTotals).toEqual([]);
     expect(pdf.summary.grandTotal).toBe(0);
     expect(pdf.summary.totalCars).toBe(0);
   });
 
-  test('missing formulas → null cells; present lines fill matching headers', () => {
+  test('headers follow the campaign formula names', () => {
     // price 500_000: เปิดบูธ FIXED 3000; ค่าขนส่ง FIXED 2000 only
     const sale = saleWith({
       id: 's1',
@@ -107,18 +105,31 @@ describe('projectCampaignClaimForPdf', () => {
       baseCost: 450_000,
       soldDate: new Date('2026-08-01T07:00:00Z'),
       formulas: [
-        { id: 'a', name: 'เปิดบูธ', operator: 'FIXED', value: 3000, priceTarget: 'SELLING_PRICE', sortOrder: 1 },
-        { id: 'b', name: 'ค่าขนส่ง', operator: 'FIXED', value: 2000, priceTarget: 'SELLING_PRICE', sortOrder: 2 },
+        {
+          id: 'a',
+          name: 'เปิดบูธ',
+          operator: 'FIXED',
+          value: 3000,
+          priceTarget: 'SELLING_PRICE',
+          sortOrder: 1,
+        },
+        {
+          id: 'b',
+          name: 'ค่าขนส่ง',
+          operator: 'FIXED',
+          value: 2000,
+          priceTarget: 'SELLING_PRICE',
+          sortOrder: 2,
+        },
       ],
     });
     const report = buildCampaignClaimReport([sale]);
     const pdf = projectCampaignClaimForPdf(report);
 
-    expect(pdf.expenseColumns).toEqual([...PDF_CLAIM_EXPENSE_COLUMNS]);
-    // [Marketing 1%, เปิดบูธ, ค่าขนส่ง, ทดสอบ, STOCK 0.5%]
-    expect(pdf.rows[0].cells).toEqual([null, 3000, 2000, null, null]);
+    expect(pdf.expenseColumns).toEqual(['เปิดบูธ', 'ค่าขนส่ง']);
+    expect(pdf.rows[0].cells).toEqual([3000, 2000]);
     expect(pdf.rows[0].total).toBe(5000);
-    expect(pdf.summary.columnTotals).toEqual([0, 3000, 2000, 0, 0]);
+    expect(pdf.summary.columnTotals).toEqual([3000, 2000]);
     expect(pdf.summary.grandTotal).toBe(5000);
   });
 
@@ -155,7 +166,8 @@ describe('projectCampaignClaimForPdf', () => {
     const report = buildCampaignClaimReport([sale]);
     const pdf = projectCampaignClaimForPdf(report);
 
-    expect(pdf.rows[0].cells).toEqual([4000, null, null, null, 2500]);
+    expect(pdf.expenseColumns).toEqual(['Marketing 1%', 'STOCK 0.5%']);
+    expect(pdf.rows[0].cells).toEqual([4000, 2500]);
     expect(pdf.rows[0].total).toBe(6500);
   });
 
@@ -181,7 +193,8 @@ describe('projectCampaignClaimForPdf', () => {
     });
     const report = buildCampaignClaimReport([sale]);
     const pdf = projectCampaignClaimForPdf(report);
-    expect(pdf.rows[0].cells[4]).toBe(5000);
+    expect(pdf.expenseColumns).toEqual(['STOCK 0.5%']);
+    expect(pdf.rows[0].cells[0]).toBe(5000);
   });
 
   test('two source columns mapping to one header are summed', () => {
@@ -219,7 +232,9 @@ describe('projectCampaignClaimForPdf', () => {
     expect(pdf.rows[0].total).toBe(150);
   });
 
-  test('unmapped expenses (After Sales) are excluded from PDF totals', () => {
+  // Regression: UAT campaign named its lines "Marketing" / "After Sales" and the
+  // old fixed-5-header projection dropped them → empty cells, total 0.00.
+  test('non-alias formula names get their own column and count in totals', () => {
     const sale = saleWith({
       id: 's5',
       vmId: 'vm5',
@@ -260,9 +275,10 @@ describe('projectCampaignClaimForPdf', () => {
     expect(report.rows[0].total).toBe(3000 + 9999 + 8888);
 
     const pdf = projectCampaignClaimForPdf(report);
-    expect(pdf.rows[0].cells).toEqual([null, 3000, null, null, null]);
-    expect(pdf.rows[0].total).toBe(3000);
-    expect(pdf.summary.grandTotal).toBe(3000);
+    expect(pdf.expenseColumns).toEqual(['เปิดบูธ', 'After Sales — Google QR', 'เป้าขาย (Retail)']);
+    expect(pdf.rows[0].cells).toEqual([3000, 9999, 8888]);
+    expect(pdf.rows[0].total).toBe(report.rows[0].total);
+    expect(pdf.summary.grandTotal).toBe(3000 + 9999 + 8888);
   });
 
   test('canonical seed display names fill Marketing 1% and STOCK 0.5% without aliases', () => {

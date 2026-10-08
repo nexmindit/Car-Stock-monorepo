@@ -331,7 +331,7 @@ export function CampaignClaimReportPage(): React.ReactElement {
               </table>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              หมายเหตุ: หัวตารางชุดเดียวกับ PDF — คอลัมน์ค่าใช้จ่ายคงที่ 5 ช่อง; รายการที่ไม่ตรงชื่อนี้ไม่แสดง
+              หมายเหตุ: หัวตารางชุดเดียวกับ PDF — คอลัมน์ค่าใช้จ่ายตามชื่อสูตรในตั้งค่าแคมเปญ
             </p>
           </>
         )}
