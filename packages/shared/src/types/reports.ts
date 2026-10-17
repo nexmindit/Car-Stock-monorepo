@@ -408,6 +408,9 @@ export interface ReportQueryParams {
   endDate?: string;
   status?: string;
   brand?: string;
+  model?: string;
+  exteriorColor?: string;
+  interiorColor?: string;
   salespersonId?: string;
   isCalculating?: boolean;
   vehicleType?: string;

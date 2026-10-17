@@ -17,6 +17,7 @@ import {
   shouldMaterializeImplicitPeriod,
 } from './interest.dates';
 import { resolveStopPeriodSource } from './interest.stop';
+import { recomputeClosedPeriods } from './interest.recalc';
 import { resolveStockInterestDisplay } from './stock-interest-display';
 import {
   classifyInterestPeriodActions,
@@ -931,6 +932,81 @@ export class InterestService {
       createdAt: newPeriod.createdAt,
       createdById: newPeriod.createdById,
     };
+  }
+
+  /**
+   * Delete one interest-history period. Any row may go (user decision): days it
+   * covered simply stop counting — neighbours are not stretched to fill the gap.
+   * Deleting every row lets the detail page rebuild the implicit period again.
+   */
+  async deleteInterestPeriod(stockId: string, periodId: string, userId: string): Promise<void> {
+    const period = await db.interestPeriod.findFirst({ where: { id: periodId, stockId } });
+    if (!period) {
+      throw new NotFoundError('Interest period');
+    }
+
+    await db.$transaction([
+      db.interestPeriod.delete({ where: { id: periodId } }),
+      db.activityLog.create({
+        data: {
+          userId,
+          action: 'DELETE_INTEREST_PERIOD',
+          entity: 'STOCK',
+          entityId: stockId,
+          // Full row kept so a mistaken delete can be re-entered by hand.
+          details: {
+            periodId,
+            startDate: period.startDate.toISOString(),
+            endDate: period.endDate?.toISOString() ?? null,
+            annualRate: Number(period.annualRate),
+            principalBase: period.principalBase,
+            principalAmount: Number(period.principalAmount),
+            calculatedInterest: Number(period.calculatedInterest),
+            daysCount: period.daysCount,
+            notes: period.notes,
+          },
+        },
+      }),
+    ]);
+  }
+
+  /** Recompute days + interest of every closed period from its stored dates/rate/principal. */
+  async recalculateInterestPeriods(stockId: string, userId: string): Promise<void> {
+    const stock = await db.stock.findUnique({
+      where: { id: stockId },
+      select: { id: true, interestPeriods: true },
+    });
+    if (!stock) {
+      throw new NotFoundError('Stock');
+    }
+
+    const updates = recomputeClosedPeriods(
+      stock.interestPeriods.map((p) => ({
+        id: p.id,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        principalAmount: Number(p.principalAmount),
+        annualRate: Number(p.annualRate),
+      }))
+    );
+
+    await db.$transaction([
+      ...updates.map((u) =>
+        db.interestPeriod.update({
+          where: { id: u.id },
+          data: { daysCount: u.daysCount, calculatedInterest: new Decimal(u.calculatedInterest) },
+        })
+      ),
+      db.activityLog.create({
+        data: {
+          userId,
+          action: 'RECALCULATE_INTEREST_PERIODS',
+          entity: 'STOCK',
+          entityId: stockId,
+          details: { updated: updates },
+        },
+      }),
+    ]);
   }
 
   /**

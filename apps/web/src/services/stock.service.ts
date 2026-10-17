@@ -95,6 +95,16 @@ export interface StockFilters {
   search?: string;
   status?: StockStatus;
   vehicleModelId?: string;
+  brand?: string;
+  model?: string;
+  exteriorColor?: string;
+  interiorColor?: string;
+}
+
+export interface StockFilterOptions {
+  models: { brand: string; model: string }[];
+  exteriorColors: string[];
+  interiorColors: string[];
 }
 
 export interface PaginatedResponse<T> {
@@ -132,6 +142,10 @@ class StockService {
     if (filters.search) params.append('search', filters.search);
     if (filters.status) params.append('status', filters.status);
     if (filters.vehicleModelId) params.append('vehicleModelId', filters.vehicleModelId);
+    if (filters.brand) params.append('brand', filters.brand);
+    if (filters.model) params.append('model', filters.model);
+    if (filters.exteriorColor) params.append('exteriorColor', filters.exteriorColor);
+    if (filters.interiorColor) params.append('interiorColor', filters.interiorColor);
 
     const response = await api.get<ApiResponse<Stock[]>>(`/api/stock?${params.toString()}`);
     return {
@@ -171,6 +185,11 @@ class StockService {
 
   async getAvailable(): Promise<Stock[]> {
     const response = await api.get<ApiResponse<Stock[]>>('/api/stock/available');
+    return response.data;
+  }
+
+  async getFilterOptions(): Promise<StockFilterOptions> {
+    const response = await api.get<ApiResponse<StockFilterOptions>>('/api/stock/filter-options');
     return response.data;
   }
 

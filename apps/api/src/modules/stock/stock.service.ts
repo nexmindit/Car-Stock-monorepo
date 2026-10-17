@@ -8,6 +8,7 @@ import {
 import { authService } from '../auth/auth.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../../lib/errors';
+import { buildStockAttributeWhere } from './stock-filter.helpers';
 
 /** SOLD rows may only change `notes`; any other PATCH field stays rejected. */
 export function isNotesOnlyStockUpdate(data: Record<string, unknown>): boolean {
@@ -139,6 +140,7 @@ export class StockService {
 
     let where: any = {
       deletedAt: null, // Exclude soft deleted records
+      ...buildStockAttributeWhere(validated),
     };
 
     if (validated.search) {
@@ -596,7 +598,9 @@ export class StockService {
       },
     });
 
-    return stock;
+    // Same shape as GET /stock/:id — the detail page swaps this straight into
+    // state, and a bare row (no vehicleModel) crashed it on `.brand`.
+    return this.getStockById(stock.id, currentUser);
   }
 
   /**
@@ -666,7 +670,7 @@ export class StockService {
       },
     });
 
-    return updatedStock;
+    return this.getStockById(updatedStock.id, currentUser);
   }
 
   /**
@@ -759,6 +763,43 @@ export class StockService {
     });
 
     return stocks;
+  }
+
+  /**
+   * Distinct brand/model and colour values present in (non-deleted) stock, for the
+   * stock list + stock report filter dropdowns.
+   */
+  async getFilterOptions(currentUser: any) {
+    if (!authService.hasPermission(currentUser.role, 'STOCK_VIEW')) {
+      throw new ForbiddenError();
+    }
+
+    const [models, exterior, interior] = await Promise.all([
+      db.vehicleModel.findMany({
+        where: { stocks: { some: { deletedAt: null } } },
+        select: { brand: true, model: true },
+        distinct: ['brand', 'model'],
+        orderBy: [{ brand: 'asc' }, { model: 'asc' }],
+      }),
+      db.stock.findMany({
+        where: { deletedAt: null },
+        select: { exteriorColor: true },
+        distinct: ['exteriorColor'],
+        orderBy: { exteriorColor: 'asc' },
+      }),
+      db.stock.findMany({
+        where: { deletedAt: null, interiorColor: { not: null } },
+        select: { interiorColor: true },
+        distinct: ['interiorColor'],
+        orderBy: { interiorColor: 'asc' },
+      }),
+    ]);
+
+    return {
+      models,
+      exteriorColors: exterior.map((s) => s.exteriorColor).filter(Boolean),
+      interiorColors: interior.map((s) => s.interiorColor as string).filter(Boolean),
+    };
   }
 
   /**

@@ -20,6 +20,10 @@ import {
   TablePagination,
 } from '@/components/ui/table';
 import { usePermission } from '../../hooks/usePermission';
+import {
+  useStockAttributeFilters,
+  type StockAttributeFilterValues,
+} from '../../hooks/useStockAttributeFilters';
 
 export default function StockListPage() {
   const [stocks, setStocks] = useState<Stock[]>([]);
@@ -32,6 +36,20 @@ export default function StockListPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 10;
+  const {
+    filters: attrFilters,
+    setFilter: setAttrFilter,
+    brands,
+    models,
+    exteriorColors,
+    interiorColors,
+  } = useStockAttributeFilters();
+  const attrSelects: [keyof StockAttributeFilterValues, string, string[]][] = [
+    ['brand', 'ยี่ห้อทั้งหมด', brands],
+    ['model', 'รุ่นรถทั้งหมด', models],
+    ['exteriorColor', 'สีภายนอกทั้งหมด', exteriorColors],
+    ['interiorColor', 'สีภายในทั้งหมด', interiorColors],
+  ];
 
   const { execute: executeDelete } = useMutationHandler('ลบสต็อกสำเร็จ');
   const { execute: executeQuery } = useErrorHandler();
@@ -47,6 +65,7 @@ export default function StockListPage() {
     const filters: any = { page, limit };
     if (debouncedSearchTerm) filters.search = debouncedSearchTerm;
     if (statusFilter !== 'ALL') filters.status = statusFilter;
+    Object.assign(filters, attrFilters);
 
     await executeQuery(
       stockService.getAll(filters).then((response) => {
@@ -57,7 +76,7 @@ export default function StockListPage() {
     );
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedSearchTerm, statusFilter]);
+  }, [page, debouncedSearchTerm, statusFilter, attrFilters]);
 
   const fetchStats = useCallback(async () => {
     await executeQuery(
@@ -215,6 +234,26 @@ export default function StockListPage() {
             <option value="SOLD">ขายแล้ว</option>
             <option value="DEMO">รถ Demo</option>
           </select>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+          {attrSelects.map(([key, allLabel, values]) => (
+            <select
+              key={key}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={attrFilters[key]}
+              onChange={(e) => {
+                setAttrFilter(key, e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{allLabel}</option>
+              {values.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          ))}
         </div>
       </div>
 

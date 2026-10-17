@@ -12,6 +12,8 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
+  RefreshCw,
+  Trash2,
   TrendingUp,
   Wallet,
 } from 'lucide-react';
@@ -22,6 +24,7 @@ import StopInterestModal from '../../components/interest/StopInterestModal';
 import { MainLayout } from '../../components/layout';
 import { useToast } from '../../components/toast';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
+import { usePermission } from '../../hooks/usePermission';
 import { interestService } from '../../services/interest.service';
 import type {
   DebtPayment,
@@ -65,6 +68,8 @@ export default function InterestDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
+  const { hasPermission } = usePermission();
+  const canUpdate = hasPermission('INTEREST_UPDATE');
   const [detail, setDetail] = useState<InterestDetail | null>(null);
   const [debtSummary, setDebtSummary] = useState<DebtSummary | null>(null);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
@@ -148,6 +153,36 @@ export default function InterestDetailPage() {
     }
     setActionLoading(false);
     return !!result;
+  };
+
+  const handleDeletePeriod = async (period: InterestPeriod, rowNumber: number) => {
+    const range = `${formatShortDate(period.startDate)} → ${
+      period.endDate ? formatShortDate(period.endDate) : 'ปัจจุบัน'
+    }`;
+    if (
+      !window.confirm(
+        `ลบประวัติดอกเบี้ยลำดับ ${rowNumber} (${range}, ${period.annualRate.toFixed(2)}%) หรือไม่?\nช่วงวันของงวดนี้จะไม่ถูกคิดดอกเบี้ยอีก`
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    const result = await executeQuery(interestService.deletePeriod(stockId!, period.id));
+    if (result) {
+      addToast('ลบประวัติดอกเบี้ยแล้ว', 'success');
+      await fetchDetail();
+    }
+    setActionLoading(false);
+  };
+
+  const handleRecalculate = async () => {
+    setActionLoading(true);
+    const result = await executeQuery(interestService.recalculatePeriods(stockId!));
+    if (result) {
+      addToast('คำนวณดอกเบี้ยใหม่แล้ว', 'success');
+      await fetchDetail();
+    }
+    setActionLoading(false);
   };
 
   const formatCurrency = (amount: number) => {
@@ -636,11 +671,22 @@ export default function InterestDetailPage() {
 
         {/* Period History */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
+          <div className="p-6 border-b border-gray-200 flex items-center justify-between gap-4">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <History className="w-5 h-5 mr-2 text-blue-600" />
               ประวัติการเปลี่ยนแปลงอัตราดอกเบี้ย
             </h3>
+            {canUpdate && periods.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRecalculate}
+                disabled={actionLoading}
+                className="inline-flex items-center px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${actionLoading ? 'animate-spin' : ''}`} />
+                คำนวณใหม่
+              </button>
+            )}
           </div>
 
           {periods.length === 0 ? (
@@ -694,6 +740,7 @@ export default function InterestDetailPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       หมายเหตุ
                     </th>
+                    {canUpdate && <th className="px-6 py-3" aria-label="จัดการ" />}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -777,6 +824,23 @@ export default function InterestDetailPage() {
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs whitespace-pre-wrap">
                           {period.notes || '-'}
                         </td>
+                        {canUpdate && (
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            {/* implicit-* is a display-only fallback row, nothing to delete */}
+                            {!period.id.startsWith('implicit-') && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePeriod(period, index + 1)}
+                                disabled={actionLoading}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                                title="ลบประวัติงวดนี้"
+                                aria-label={`ลบประวัติลำดับ ${index + 1}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -793,6 +857,7 @@ export default function InterestDetailPage() {
                       {formatCurrency(summary.totalAccumulatedInterest)}
                     </td>
                     <td></td>
+                    {canUpdate && <td />}
                   </tr>
                 </tfoot>
               </table>

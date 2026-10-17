@@ -12,6 +12,7 @@ import type { PaymentStatus, SaleStatus, StockStatus, VehicleType } from '@prism
 import type { Decimal } from '@prisma/client/runtime/library';
 import { db } from '../../lib/db';
 import { resolveReportStockNotes } from '../sales/sale-notes';
+import { type StockAttributeFilters, buildStockAttributeWhere } from '../stock/stock-filter.helpers';
 import { type BankInterestStockInput, buildBankInterestRows } from './bank-interest.helpers';
 import {
   buildCampaignClaimReport,
@@ -197,7 +198,7 @@ export async function getDailyPaymentReport(params: DailyPaymentParams) {
 // Stock Report Service
 // ============================================
 
-interface StockReportParams {
+interface StockReportParams extends StockAttributeFilters {
   startDate?: Date;
   endDate?: Date;
   vehicleType?: VehicleType;
@@ -209,12 +210,14 @@ const STOCK_REPORT_STATUSES = ['AVAILABLE', 'DEMO'] as StockStatus[];
 export async function getStockReport(params: StockReportParams) {
   const { vehicleType } = params;
 
+  const attributeWhere = buildStockAttributeWhere(params);
   const where: Record<string, unknown> = {
     deletedAt: null,
     status: { in: STOCK_REPORT_STATUSES },
+    ...attributeWhere,
   };
   if (vehicleType) {
-    where.vehicleModel = { type: vehicleType };
+    where.vehicleModel = { ...attributeWhere.vehicleModel, type: vehicleType };
   }
 
   const stocks = await db.stock.findMany({

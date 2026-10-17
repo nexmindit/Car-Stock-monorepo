@@ -400,6 +400,44 @@ export const interestRoutes = new Elysia({ prefix: '/interest' })
       },
     }
   )
+  // Recompute days + interest of every closed period
+  .post(
+    '/:stockId/recalculate',
+    async ({ params, set, requester }) => {
+      if (!authService.hasPermission(requester!.role, 'INTEREST_UPDATE' as any)) {
+        set.status = 403;
+        return { success: false, error: 'Forbidden', message: 'Insufficient permissions' };
+      }
+
+      await interestService.recalculateInterestPeriods(params.stockId, requester!.id);
+      set.status = 200;
+      return { success: true, message: 'Interest periods recalculated' };
+    },
+    {
+      beforeHandle: authMiddleware,
+      params: t.Object({ stockId: t.String() }),
+      detail: { tags: ['Interest'], summary: 'Recalculate interest history' },
+    }
+  )
+  // Delete one interest-history period
+  .delete(
+    '/:stockId/periods/:periodId',
+    async ({ params, set, requester }) => {
+      if (!authService.hasPermission(requester!.role, 'INTEREST_UPDATE' as any)) {
+        set.status = 403;
+        return { success: false, error: 'Forbidden', message: 'Insufficient permissions' };
+      }
+
+      await interestService.deleteInterestPeriod(params.stockId, params.periodId, requester!.id);
+      set.status = 200;
+      return { success: true, message: 'Interest period deleted' };
+    },
+    {
+      beforeHandle: authMiddleware,
+      params: t.Object({ stockId: t.String(), periodId: t.String() }),
+      detail: { tags: ['Interest'], summary: 'Delete interest history period' },
+    }
+  )
   // Resume interest calculation
   .post(
     '/:stockId/resume',

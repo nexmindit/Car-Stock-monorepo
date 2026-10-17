@@ -329,6 +329,15 @@ class InterestService {
     );
   }
 
+  /** Recompute days + interest of every closed period. */
+  async recalculatePeriods(stockId: string): Promise<{ success: boolean }> {
+    return api.post<{ success: boolean }>(`/api/interest/${stockId}/recalculate`);
+  }
+
+  async deletePeriod(stockId: string, periodId: string): Promise<{ success: boolean }> {
+    return api.delete<{ success: boolean }>(`/api/interest/${stockId}/periods/${periodId}`);
+  }
+
   /**
    * Resume interest calculation for a stock
    */

@@ -17,6 +17,10 @@ import {
   formatNumber,
 } from '../../components/reports';
 import { exportMultiSheet } from '../../components/reports/exportUtils';
+import {
+  type StockAttributeFilterValues,
+  useStockAttributeFilters,
+} from '../../hooks/useStockAttributeFilters';
 import { reportService } from '../../services/report.service';
 
 export default function StockReportPage() {
@@ -25,6 +29,20 @@ export default function StockReportPage() {
   const [data, setData] = useState<StockReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState<string>('');
+  const {
+    filters: attrFilters,
+    setFilter: setAttrFilter,
+    brands,
+    models,
+    exteriorColors,
+    interiorColors,
+  } = useStockAttributeFilters();
+  const attrSelects: [keyof StockAttributeFilterValues, string, string[]][] = [
+    ['brand', 'ยี่ห้อ', brands],
+    ['model', 'รุ่นรถ', models],
+    ['exteriorColor', 'สีภายนอก', exteriorColors],
+    ['interiorColor', 'สีภายใน', interiorColors],
+  ];
 
   // Default dates
   const today = new Date();
@@ -40,6 +58,7 @@ export default function StockReportPage() {
         startDate,
         endDate,
         vehicleType: vehicleTypeFilter || undefined,
+        ...attrFilters,
       });
       setData(result);
     } catch (err) {
@@ -136,11 +155,13 @@ export default function StockReportPage() {
           startDate,
           endDate,
           vehicleType: 'SEDAN',
+          ...attrFilters,
         }),
         reportService.getStockReport({
           startDate,
           endDate,
           vehicleType: 'PICKUP',
+          ...attrFilters,
         }),
       ]);
       exportMultiSheet({
@@ -165,6 +186,7 @@ export default function StockReportPage() {
         startDate,
         endDate,
         vehicleType: vehicleTypeFilter || undefined,
+        ...attrFilters,
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -225,6 +247,29 @@ export default function StockReportPage() {
             <option value="VAN">ตู้</option>
           </select>
         </div>
+        {attrSelects.map(([key, label, values]) => (
+          <div key={key}>
+            <label
+              htmlFor={`stock-filter-${key}`}
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              {label}
+            </label>
+            <select
+              id={`stock-filter-${key}`}
+              value={attrFilters[key]}
+              onChange={(e) => setAttrFilter(key, e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">ทั้งหมด</option>
+              {values.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
         <div className="flex items-end">
           <button
             onClick={fetchReport}
@@ -261,6 +306,7 @@ export default function StockReportPage() {
               startDate,
               endDate,
               vehicleType: vehicleTypeFilter || undefined,
+              ...attrFilters,
             })
           }
         />

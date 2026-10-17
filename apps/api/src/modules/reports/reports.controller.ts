@@ -169,6 +169,10 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
 
       const result = await reportsService.getStockReport({
         vehicleType: query.vehicleType as any,
+        brand: query.brand,
+        model: query.model,
+        exteriorColor: query.exteriorColor,
+        interiorColor: query.interiorColor,
       });
 
       set.status = 200;
@@ -183,6 +187,10 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
         vehicleType: t.Optional(t.String()),
+        brand: t.Optional(t.String()),
+        model: t.Optional(t.String()),
+        exteriorColor: t.Optional(t.String()),
+        interiorColor: t.Optional(t.String()),
       }),
       detail: {
         tags: ['Reports'],
@@ -201,6 +209,10 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
 
       const result = await reportsService.getStockReport({
         vehicleType: query.vehicleType as any,
+        brand: query.brand,
+        model: query.model,
+        exteriorColor: query.exteriorColor,
+        interiorColor: query.interiorColor,
       });
 
       const dateRange = `ข้อมูล ณ วันที่ ${formatThaiDate(new Date(), 'full')}`;
@@ -226,6 +238,10 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
         vehicleType: t.Optional(t.String()),
+        brand: t.Optional(t.String()),
+        model: t.Optional(t.String()),
+        exteriorColor: t.Optional(t.String()),
+        interiorColor: t.Optional(t.String()),
       }),
     }
   )

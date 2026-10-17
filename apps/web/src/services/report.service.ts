@@ -83,6 +83,10 @@ class ReportService {
     if (params?.endDate) queryParams.append('endDate', params.endDate);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.vehicleType) queryParams.append('vehicleType', params.vehicleType);
+    if (params?.brand) queryParams.append('brand', params.brand);
+    if (params?.model) queryParams.append('model', params.model);
+    if (params?.exteriorColor) queryParams.append('exteriorColor', params.exteriorColor);
+    if (params?.interiorColor) queryParams.append('interiorColor', params.interiorColor);
 
     const url = `/api/reports/stock${queryParams.toString() ? `?${queryParams}` : ''}`;
     const response = await api.get<ApiResponse<StockReportResponse>>(url);
@@ -99,6 +103,10 @@ class ReportService {
     if (params?.startDate) queryParams.append('startDate', params.startDate);
     if (params?.endDate) queryParams.append('endDate', params.endDate);
     if (params?.vehicleType) queryParams.append('vehicleType', params.vehicleType);
+    if (params?.brand) queryParams.append('brand', params.brand);
+    if (params?.model) queryParams.append('model', params.model);
+    if (params?.exteriorColor) queryParams.append('exteriorColor', params.exteriorColor);
+    if (params?.interiorColor) queryParams.append('interiorColor', params.interiorColor);
 
     const url = `/api/reports/stock/pdf${queryParams.toString() ? `?${queryParams}` : ''}`;
     return api.getBlob(url);

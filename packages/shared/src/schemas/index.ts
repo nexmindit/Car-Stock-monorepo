@@ -633,6 +633,10 @@ export const StockFilterSchema = PaginationSchema.extend({
   search: z.string().optional(),
   status: StockStatusSchema.optional(),
   vehicleModelId: z.string().optional(),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  exteriorColor: z.string().optional(),
+  interiorColor: z.string().optional(),
 });
 
 export const SaleFilterSchema = PaginationSchema.extend({

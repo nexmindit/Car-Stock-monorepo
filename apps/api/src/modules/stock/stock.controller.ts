@@ -33,6 +33,10 @@ export const stockRoutes = new Elysia({ prefix: '/stock' })
           ])
         ),
         vehicleModelId: t.Optional(t.String()),
+        brand: t.Optional(t.String()),
+        model: t.Optional(t.String()),
+        exteriorColor: t.Optional(t.String()),
+        interiorColor: t.Optional(t.String()),
       }),
       detail: {
         tags: ['Stock'],
@@ -58,6 +62,26 @@ export const stockRoutes = new Elysia({ prefix: '/stock' })
         tags: ['Stock'],
         summary: 'Get stock statistics',
         description: 'Get overview statistics for stock',
+      },
+    }
+  )
+  // Distinct brand/model/colour values for filter dropdowns
+  .get(
+    '/filter-options',
+    async ({ set, requester }) => {
+      const options = await stockService.getFilterOptions(requester!);
+      set.status = 200;
+      return {
+        success: true,
+        data: options,
+      };
+    },
+    {
+      beforeHandle: authMiddleware,
+      detail: {
+        tags: ['Stock'],
+        summary: 'Get stock filter options',
+        description: 'Distinct brand/model and colours present in stock',
       },
     }
   )
