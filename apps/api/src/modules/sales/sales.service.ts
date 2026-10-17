@@ -3,6 +3,7 @@ import { CreateSaleSchema, UpdateSaleSchema, SaleFilterSchema } from '@car-stock
 import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
 import { authService } from '../auth/auth.service';
 import { campaignFormulasService } from '../campaigns/campaign-formulas.service';
+import { campaignDay } from '../../lib/campaignDate';
 import { Decimal } from '@prisma/client/runtime/library';
 import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '../../lib/errors';
 import {
@@ -440,6 +441,9 @@ export class SalesService {
     // Both the stored status and the date window must agree — a campaign with
     // status=ACTIVE but endDate in the past is effectively closed (the report
     // submission window is over) and must not accept new tagged sales.
+    // Judge by the sale's business date (createdAt may be backdated), as a
+    // Bangkok calendar day — not the moment the bill happens to be keyed in.
+    const saleDay = campaignDay(validated.createdAt ?? new Date());
     if (validated.campaignId) {
       const campaign = await db.campaign.findUnique({
         where: { id: validated.campaignId },
@@ -454,11 +458,10 @@ export class SalesService {
         throw new BadRequestError('Campaign is not active');
       }
 
-      const now = new Date();
-      if (campaign.startDate > now) {
+      if (campaign.startDate > saleDay) {
         throw new BadRequestError('Campaign has not started yet');
       }
-      if (campaign.endDate < now) {
+      if (campaign.endDate < saleDay) {
         throw new BadRequestError('Campaign has already ended');
       }
     }
@@ -471,12 +474,11 @@ export class SalesService {
     // overlapping ACTIVE campaigns.
     // vehicleModelId is already resolved from stock when stockId is set.
     if (!validated.campaignId && validated.vehicleModelId) {
-      const now = new Date();
       const activeCampaign = await db.campaign.findFirst({
         where: {
           status: 'ACTIVE',
-          startDate: { lte: now },
-          endDate: { gte: now },
+          startDate: { lte: saleDay },
+          endDate: { gte: saleDay },
           vehicleModels: { some: { vehicleModelId: validated.vehicleModelId } },
         },
         orderBy: { startDate: 'desc' },

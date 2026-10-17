@@ -5,7 +5,7 @@ import {
   buildCampaignClaimReport,
   computeCampaignSubsidies,
   computeLiveClaimTotal,
-  pickClaimCampaign,
+  claimCampaignFor,
 } from '../modules/reports/campaign-claim.helpers';
 
 const model = (id: string, modelName: string, variant: string | null, price: number) => ({
@@ -165,18 +165,18 @@ describe('buildCampaignClaimReport (expense columns)', () => {
     ).toBe(0);
   });
 
-  test('pickClaimCampaign falls back to catalog by model + sale date', () => {
+  test('claimCampaignFor falls back to catalog by model + sale date', () => {
     const untagged = { ...saleV, campaign: null };
     const catalog = [
       {
         name: 'CHERY V23 DEMO',
-        status: 'DRAFT',
+        status: 'ACTIVE',
         startDate: new Date('2026-07-23'),
         endDate: new Date('2026-09-19'),
         vehicleModels: saleV.campaign!.vehicleModels,
       },
     ];
-    const picked = pickClaimCampaign(
+    const picked = claimCampaignFor(
       {
         campaign: null,
         vehicleModel: untagged.vehicleModel,
@@ -189,7 +189,7 @@ describe('buildCampaignClaimReport (expense columns)', () => {
     expect(computeLiveClaimTotal({ ...untagged, campaign: picked })).toBe(30_000);
   });
 
-  test('pickClaimCampaign prefers the tagged campaign over the catalog', () => {
+  test('claimCampaignFor keeps the tagged campaign; catalog without the model adds nothing', () => {
     const catalog = [
       {
         name: 'OTHER',
@@ -199,7 +199,7 @@ describe('buildCampaignClaimReport (expense columns)', () => {
         vehicleModels: saleX.campaign!.vehicleModels,
       },
     ];
-    const picked = pickClaimCampaign(
+    const picked = claimCampaignFor(
       {
         campaign: saleV.campaign,
         vehicleModel: saleV.vehicleModel,
@@ -211,18 +211,18 @@ describe('buildCampaignClaimReport (expense columns)', () => {
     expect(computeLiveClaimTotal({ ...saleV, campaign: picked })).toBe(30_000);
   });
 
-  test('pickClaimCampaign is null when date or model does not match', () => {
+  test('claimCampaignFor is null when date or model does not match', () => {
     const catalog = [
       {
         name: 'CHERY V23 DEMO',
-        status: 'DRAFT',
+        status: 'ACTIVE',
         startDate: new Date('2026-07-23'),
         endDate: new Date('2026-09-19'),
         vehicleModels: saleV.campaign!.vehicleModels,
       },
     ];
     expect(
-      pickClaimCampaign(
+      claimCampaignFor(
         {
           campaign: null,
           vehicleModel: saleV.vehicleModel,
@@ -232,6 +232,44 @@ describe('buildCampaignClaimReport (expense columns)', () => {
         catalog
       )
     ).toBeNull();
+  });
+
+  test('claimCampaignFor sums every overlapping ACTIVE campaign plus the tag', () => {
+    // price 500,000 / cost 450,000 → tag FIXED 1,000 + MARKETING 1% cost 4,500
+    // + AFTER SALES 0.25% sell 1,250 = 6,750. DRAFT and the tag's own catalog
+    // entry must not add anything.
+    const line = (name: string, operator: Fm['operator'], value: number, priceTarget: Fm['priceTarget']) => ({
+      vehicleModelId: 'vm1',
+      formulas: [{ id: name, name, operator, value, priceTarget, sortOrder: 1 }],
+    });
+    const tag = { id: 'tag', name: 'TAG', vehicleModels: [line('ส่วนลด', 'FIXED', 1000, 'SELLING_PRICE')] };
+    const camp = (id: string, status: string, vm: ReturnType<typeof line>) => ({
+      id,
+      name: id,
+      status,
+      startDate: new Date('2026-10-01'),
+      endDate: new Date('2026-10-31'),
+      vehicleModels: [vm],
+    });
+    const catalog = [
+      { ...camp('tag', 'ACTIVE', tag.vehicleModels[0]), name: 'TAG' },
+      camp('MARKETING', 'ACTIVE', line('Marketing', 'PERCENT', 1, 'COST_PRICE')),
+      camp('AFTER SALES', 'ACTIVE', line('After Sales', 'PERCENT', 0.25, 'SELLING_PRICE')),
+      camp('WHOLESALE', 'DRAFT', line('Wholesale', 'FIXED', 99_999, 'SELLING_PRICE')),
+    ];
+    const merged = claimCampaignFor(
+      { campaign: tag, vehicleModel: saleV.vehicleModel, stock: saleV.stock, saleDate: new Date('2026-10-15') },
+      catalog
+    );
+    expect(merged?.name).toBe('TAG, MARKETING, AFTER SALES');
+    expect(computeLiveClaimTotal({ ...saleV, campaign: merged })).toBe(6_750);
+
+    const report = buildCampaignClaimReport([
+      { ...saleV, campaign: { id: merged!.id!, name: merged!.name!, vehicleModels: merged!.vehicleModels } },
+    ]);
+    expect(report.expenseColumns).toEqual(['ส่วนลด', 'Marketing', 'After Sales']);
+    expect(report.rows[0].cells).toEqual([1000, 4500, 1250]);
+    expect(report.summary.grandTotal).toBe(6_750);
   });
 
   test('live total follows current formulas, not a frozen snapshot', () => {

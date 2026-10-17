@@ -1,5 +1,6 @@
 import type { FormulaOperator, FormulaPriceTarget } from '@prisma/client';
 import { formulaSubsidyAmount } from '@car-stock/shared/formulas';
+import { campaignDay } from '../../lib/campaignDate';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const toNum = (v: { toString(): string } | number | null | undefined): number =>
@@ -140,6 +141,7 @@ const modelLabel = (vm: ClaimVehicleModel): string =>
 /** Inputs needed to recompute ยอดเบิกต่อคัน from current campaign formulas. */
 export interface LiveClaimInput {
   campaign: {
+    id?: string;
     name?: string;
     vehicleModels: Array<{ vehicleModelId: string; formulas: ClaimFormula[] }>;
   } | null;
@@ -160,14 +162,14 @@ export interface ClaimCampaignCandidate {
 }
 
 /**
- * Campaign used for the sales-report offset.
- *
- * Tagged sale.campaign wins when it has formulas for this model.
- * Otherwise pick a catalog campaign whose date window covers saleDate and
- * includes the model — so a newly created campaign applies without
- * re-saving every historical bill. ACTIVE beats DRAFT; latest startDate wins ties.
+ * Every campaign a sale claims from, merged into one campaign shape: the tagged
+ * sale.campaign plus each ACTIVE catalog campaign whose window covers saleDate's
+ * Bangkok day and includes the model. Campaigns may overlap on a model (the
+ * customer splits MARKETING / AFTER SALES / WHOLESALE into separate campaigns
+ * over the same period), so a car collects from all of them. DRAFT / stored
+ * ENDED catalog entries never count; a tagged campaign always does.
  */
-export function pickClaimCampaign(
+export function claimCampaignFor(
   sale: {
     campaign: LiveClaimInput['campaign'];
     vehicleModel: ClaimVehicleModel | null;
@@ -176,27 +178,28 @@ export function pickClaimCampaign(
   },
   catalog: ClaimCampaignCandidate[]
 ): LiveClaimInput['campaign'] {
+  const list: NonNullable<LiveClaimInput['campaign']>[] = sale.campaign ? [sale.campaign] : [];
   const vmId = (sale.stock?.vehicleModel ?? sale.vehicleModel)?.id ?? null;
-  if (!vmId) return sale.campaign;
-
-  if (sale.campaign?.vehicleModels.some((m) => m.vehicleModelId === vmId)) {
-    return sale.campaign;
+  if (vmId) {
+    const day = campaignDay(sale.saleDate).getTime();
+    for (const c of catalog) {
+      if (
+        c.status === 'ACTIVE' &&
+        c.startDate.getTime() <= day &&
+        c.endDate.getTime() >= day &&
+        c.vehicleModels.some((m) => m.vehicleModelId === vmId) &&
+        !list.some((x) => x.id != null && x.id === c.id)
+      ) {
+        list.push(c);
+      }
+    }
   }
-
-  const t = sale.saleDate.getTime();
-  const matches = catalog.filter(
-    (c) =>
-      c.startDate.getTime() <= t &&
-      c.endDate.getTime() >= t &&
-      c.vehicleModels.some((m) => m.vehicleModelId === vmId)
-  );
-  matches.sort((a, b) => {
-    const rank = (s?: string) => (s === 'ACTIVE' ? 0 : s === 'DRAFT' ? 1 : 2);
-    const byStatus = rank(a.status) - rank(b.status);
-    if (byStatus !== 0) return byStatus;
-    return b.startDate.getTime() - a.startDate.getTime();
-  });
-  return matches[0] ?? sale.campaign;
+  if (list.length <= 1) return list[0] ?? null;
+  return {
+    id: list.map((c) => c.id).join(','),
+    name: list.map((c) => c.name).filter(Boolean).join(', '),
+    vehicleModels: list.flatMap((c) => c.vehicleModels),
+  };
 }
 
 const resolveModel = (sale: LiveClaimInput): ClaimVehicleModel | null =>
@@ -211,19 +214,20 @@ export function computeLiveClaimAmounts(sale: LiveClaimInput): {
   total: number;
 } {
   const vm = resolveModel(sale);
-  const vmId = vm?.id ?? null;
-  const cvm = vmId
-    ? sale.campaign?.vehicleModels.find((m) => m.vehicleModelId === vmId)
-    : undefined;
   const amounts = new Map<string, number>();
-  if (cvm && vm) {
+  if (vm) {
     const bases = {
       cost: sale.stock ? toNum(sale.stock.baseCost) : 0,
       selling: toNum(vm.price),
     };
-    for (const f of cvm.formulas) {
-      const amt = formulaSubsidyAmount(f.operator, toNum(f.value), f.priceTarget, bases);
-      amounts.set(f.name, round2((amounts.get(f.name) ?? 0) + amt));
+    // A merged multi-campaign (claimCampaignFor) holds one entry per campaign
+    // for the same model — take them all; same-name lines sum into one column.
+    for (const cvm of sale.campaign?.vehicleModels ?? []) {
+      if (cvm.vehicleModelId !== vm.id) continue;
+      for (const f of cvm.formulas) {
+        const amt = formulaSubsidyAmount(f.operator, toNum(f.value), f.priceTarget, bases);
+        amounts.set(f.name, round2((amounts.get(f.name) ?? 0) + amt));
+      }
     }
   }
   const total = round2([...amounts.values()].reduce((s, a) => s + a, 0));

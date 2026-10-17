@@ -5,6 +5,7 @@ import { formulaSubsidyAmount, sumCampaignSubsidies } from '@car-stock/shared/fo
 import { diffModelSet } from './campaign-model-set.helpers';
 import { buildClonedCampaign, type CloneSource } from './campaign-duplicate.helpers';
 import { campaignFormulasService } from './campaign-formulas.service';
+import { campaignDay, campaignWindow } from '../../lib/campaignDate';
 
 /**
  * Derive the display status of a campaign at read time. The stored
@@ -20,7 +21,7 @@ import { campaignFormulasService } from './campaign-formulas.service';
 function getEffectiveStatus(status: CampaignStatus, endDate: Date): CampaignStatus {
   // Only project ACTIVE → ENDED. A DRAFT past its endDate is still a DRAFT —
   // it never ran, so calling it "ENDED" would falsely imply rebates accrued.
-  if (status === 'ACTIVE' && endDate.getTime() < Date.now()) {
+  if (status === 'ACTIVE' && endDate.getTime() < campaignDay(new Date()).getTime()) {
     return 'ENDED' as CampaignStatus;
   }
   return status;
@@ -347,65 +348,6 @@ class CampaignsService {
   }
 
   /**
-   * Guard against two ACTIVE campaigns covering the same vehicle model in
-   * overlapping date windows. This is the rule that lets auto-tag at sale
-   * creation be deterministic — at most one ACTIVE campaign per (model,
-   * day) means there is exactly one candidate to attach.
-   *
-   * DRAFT/ENDED campaigns never auto-tag, so overlaps with them are fine
-   * and we skip the check for those statuses.
-   *
-   * Date overlap uses the standard interval formula:
-   *   A.start <= B.end  AND  B.start <= A.end
-   */
-  private async assertNoActiveOverlap(
-    vehicleModelIds: string[] | undefined,
-    startDate: Date | undefined,
-    endDate: Date | undefined,
-    effectiveStatus: CampaignStatus,
-    excludeCampaignId?: string
-  ) {
-    if (effectiveStatus !== 'ACTIVE') return;
-    if (!vehicleModelIds?.length || !startDate || !endDate) return;
-
-    // A stored-ACTIVE campaign whose endDate is already past can never
-    // auto-tag a new sale, so it does not actually compete for the same
-    // (model, today) slot — exclude it from the conflict check. This keeps
-    // the rule aligned with the auto-tag query in sales.service.ts.
-    const now = new Date();
-
-    const conflict = await db.campaign.findFirst({
-      where: {
-        id: excludeCampaignId ? { not: excludeCampaignId } : undefined,
-        status: 'ACTIVE',
-        AND: [
-          { startDate: { lte: endDate } },
-          { endDate: { gte: startDate } },
-          { endDate: { gte: now } },
-        ],
-        vehicleModels: {
-          some: { vehicleModelId: { in: vehicleModelIds } },
-        },
-      },
-      include: {
-        vehicleModels: {
-          where: { vehicleModelId: { in: vehicleModelIds } },
-          include: { vehicleModel: { select: { brand: true, model: true } } },
-        },
-      },
-    });
-
-    if (conflict) {
-      const models = conflict.vehicleModels
-        .map((vm) => `${vm.vehicleModel.brand} ${vm.vehicleModel.model}`)
-        .join(', ');
-      throw new BadRequestError(
-        `แคมเปญทับซ้อนกับ "${conflict.name}" ในช่วงเวลาเดียวกันสำหรับรุ่น: ${models}`
-      );
-    }
-  }
-
-  /**
    * Update campaign
    */
   async update(id: string, data: UpdateCampaignData, userId?: string) {
@@ -415,22 +357,14 @@ class CampaignsService {
       throw new BadRequestError('วันเริ่มต้นต้องอยู่ก่อนวันสิ้นสุด');
     }
 
-    // Resolve the *effective* post-update state (status, dates, models) by
-    // merging the patch against the current row, then enforce the no-active-
-    // overlap rule. We do this outside the transaction since it is read-only.
+    // ponytail: no overlap guard — a model may sit in several ACTIVE campaigns
+    // at once (MARKETING / AFTER SALES / WHOLESALE split per campaign); reports
+    // sum every covering campaign, auto-tag just picks the latest-starting one.
     const current = await db.campaign.findUnique({
       where: { id },
       include: { vehicleModels: { select: { vehicleModelId: true } } },
     });
     if (!current) throw new NotFoundError('Campaign');
-
-    await this.assertNoActiveOverlap(
-      vehicleModelIds ?? current.vehicleModels.map((vm) => vm.vehicleModelId),
-      campaignData.startDate ?? current.startDate,
-      campaignData.endDate ?? current.endDate,
-      (campaignData.status ?? current.status) as CampaignStatus,
-      id
-    );
 
     // Guard against orphaning already-tagged sales by removing the vehicle
     // model they were attached under. The campaign report joins each sale
@@ -561,13 +495,11 @@ class CampaignsService {
     const modelIds = new Set(campaign.vehicleModels.map((vm) => vm.vehicleModelId));
     if (modelIds.size === 0) return;
 
-    // ponytail: endDate is stored as a date-only midnight; +1 day makes the last day inclusive.
-    const endExclusive = new Date(campaign.endDate.getTime() + 24 * 60 * 60 * 1000);
     const candidates = await db.sale.findMany({
       where: {
         campaignId: null,
         status: { notIn: ['CANCELLED'] },
-        createdAt: { gte: campaign.startDate, lt: endExclusive },
+        createdAt: campaignWindow(campaign.startDate, campaign.endDate),
         OR: [
           { vehicleModelId: { in: [...modelIds] } },
           { stock: { vehicleModelId: { in: [...modelIds] } } },
@@ -736,14 +668,26 @@ class CampaignsService {
     const filterStartDate = startDate || campaign.startDate;
     const filterEndDate = endDate || campaign.endDate;
 
-    // Get sales for this campaign within the date range
+    // Sales tagged to this campaign, plus (while ACTIVE) untagged-or-otherwise-tagged
+    // sales of its models inside its window — campaigns may overlap and each one
+    // claims every car it covers, same rule as รายงานเบิกแคมเปญ.
+    const modelIds = campaign.vehicleModels.map((vm) => vm.vehicleModelId);
+    const covered =
+      campaign.status === 'ACTIVE' && modelIds.length > 0
+        ? [
+            {
+              createdAt: campaignWindow(campaign.startDate, campaign.endDate),
+              OR: [
+                { stock: { vehicleModelId: { in: modelIds } } },
+                { stockId: null, vehicleModelId: { in: modelIds } },
+              ],
+            },
+          ]
+        : [];
     const sales = await db.sale.findMany({
       where: {
-        campaignId,
-        createdAt: {
-          gte: filterStartDate,
-          lte: filterEndDate,
-        },
+        OR: [{ campaignId }, ...covered],
+        createdAt: campaignWindow(filterStartDate, filterEndDate),
         status: {
           notIn: ['CANCELLED'],
         },
@@ -837,12 +781,12 @@ class CampaignsService {
    * Get active campaigns
    */
   async getActiveCampaigns() {
-    const now = new Date();
+    const today = campaignDay(new Date());
     return db.campaign.findMany({
       where: {
         status: 'ACTIVE',
-        startDate: { lte: now },
-        endDate: { gte: now },
+        startDate: { lte: today },
+        endDate: { gte: today },
       },
       include: {
         vehicleModels: {
@@ -866,14 +810,14 @@ class CampaignsService {
    * Get campaigns for a specific vehicle model
    */
   async getCampaignsForVehicleModel(vehicleModelId: string) {
-    const now = new Date();
+    const today = campaignDay(new Date());
     const campaigns = await db.campaignVehicleModel.findMany({
       where: {
         vehicleModelId,
         campaign: {
           status: 'ACTIVE',
-          startDate: { lte: now },
-          endDate: { gte: now },
+          startDate: { lte: today },
+          endDate: { gte: today },
         },
       },
       include: {

@@ -17,7 +17,7 @@ import { type BankInterestStockInput, buildBankInterestRows } from './bank-inter
 import {
   buildCampaignClaimReport,
   computeLiveClaimTotal,
-  pickClaimCampaign,
+  claimCampaignFor,
 } from './campaign-claim.helpers';
 import { buildSalespersonBreakdown, computeSaleMoney } from './sales-summary.helpers';
 import { parseDay } from '../interest/interest.dates';
@@ -638,6 +638,7 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
 
   const campaignCatalog = await db.campaign.findMany({
     where: {
+      status: 'ACTIVE',
       ...(startDate && endDate
         ? { startDate: { lte: endDate }, endDate: { gte: startDate } }
         : {}),
@@ -663,6 +664,7 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
       customer: { select: { name: true, type: true } },
       campaign: {
         select: {
+          id: true,
           name: true,
           vehicleModels: {
             select: {
@@ -764,10 +766,10 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
     const salesExpense = toNumber(sale.salesExpense) || 0;
     const discountAmount =
       sale.carDiscount != null ? toNumber(sale.carDiscount) : toNumber(sale.discountSnapshot) || 0;
-    // Live ยอดเบิกต่อคัน (same engine as รายงานเบิกแคมเปญ). If the sale was
-    // never tagged, pick a campaign by model + sale date so creating a
-    // campaign applies without re-saving every bill.
-    const claimCampaign = pickClaimCampaign(
+    // Live ยอดเบิกต่อคัน (same engine as รายงานเบิกแคมเปญ): tagged campaign plus
+    // every ACTIVE campaign covering model + sale date, so creating a campaign
+    // applies without re-saving every bill and overlapping campaigns all count.
+    const claimCampaign = claimCampaignFor(
       {
         campaign: sale.campaign,
         vehicleModel: sale.vehicleModel,
@@ -1762,7 +1764,6 @@ export async function getCampaignClaimReport(params: {
 
   const sales = await db.sale.findMany({
     where: {
-      campaignId: campaignId ? campaignId : { not: null },
       status: { notIn: ['CANCELLED'] },
       // Third branch covers stocked sales whose soldDate hasn't been stamped yet
       // (builder falls back to completedDate).
@@ -1804,11 +1805,36 @@ export async function getCampaignClaimReport(params: {
     orderBy: { createdAt: 'asc' },
   });
 
+  // Claimable campaigns: the tag plus every ACTIVE campaign covering the
+  // sale's model + business date (createdAt, same date auto-tag uses). Campaigns
+  // may overlap, so a car can claim from several. campaignId narrows to one.
+  const catalog = await db.campaign.findMany({
+    where: campaignId ? { id: campaignId } : { status: 'ACTIVE' },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      vehicleModels: {
+        select: { vehicleModelId: true, formulas: { orderBy: { sortOrder: 'asc' } } },
+      },
+    },
+  });
+
   // Brand lives on the resolved model (stock's model wins) — filter in JS to
   // keep the OR query simple; monthly volumes are small.
-  const brandSales = sales.filter(
-    (s) => (s.stock?.vehicleModel?.brand ?? s.vehicleModel?.brand) === brand
-  );
+  const brandSales = sales
+    .filter((s) => (s.stock?.vehicleModel?.brand ?? s.vehicleModel?.brand) === brand)
+    .map((s) => {
+      const tagged = !campaignId || s.campaign?.id === campaignId ? s.campaign : null;
+      const merged = claimCampaignFor(
+        { campaign: tagged, vehicleModel: s.vehicleModel, stock: s.stock, saleDate: s.createdAt },
+        catalog
+      );
+      return merged ? { ...s, campaign: { id: merged.id ?? '', name: merged.name ?? '', vehicleModels: merged.vehicleModels } } : null;
+    })
+    .filter((s) => s != null);
 
   const report = buildCampaignClaimReport(brandSales);
 

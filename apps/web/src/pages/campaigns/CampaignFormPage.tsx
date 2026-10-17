@@ -216,6 +216,9 @@ export const CampaignFormPage: React.FC = () => {
                   <option value="ACTIVE">กำลังดำเนินการ</option>
                   <option value="ENDED">สิ้นสุดแล้ว</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  รุ่นเดียวกันเปิดได้หลายแคมเปญในช่วงเวลาเดียวกัน — รายงานเบิกแคมเปญจะรวมยอดจากทุกแคมเปญที่กำลังดำเนินการ
+                </p>
               </div>
             )}
 
