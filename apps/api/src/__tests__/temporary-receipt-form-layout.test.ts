@@ -15,8 +15,7 @@ const overlaySource = readFileSync(
 
 const PAGE_WIDTH_MM = 9.5 * 25.4; // 241.3 — physical pinfeed sheet
 const OVERLAY_WIDTH_MM = 9 * 25.4; // 228.6 — pre-printed form origin
-const TEAROFF_BODY_MM = 8.5 * 25.4; // 215.9 — pinfeed sheet after left+right stubs
-const STUB_MM = 0.5 * 25.4; // 12.7
+const PRINTABLE_MM = 8 * 25.4; // 203.2 — how far an 80-col head reaches from the left edge
 
 function cssBlock(source: string, selector: string): string {
   const re = new RegExp(`${selector.replaceAll('.', '\\.')}\\s*\\{([^}]+)\\}`);
@@ -53,16 +52,22 @@ describe('temporary-receipt form layout — CARSTOCK01-23 pinfeed tear-off', () 
     expect(formSource).toMatch(/@page\s*\{[^}]*margin:\s*0/s);
   });
 
-  test('insets the form 0.5in each side so the table stays inside the 8.5in tear-off', () => {
+  test('keeps every drop of ink inside the leftmost 8in the print head reaches', () => {
     const block = cssBlock(formSource, '.receipt-container');
     const widthMm = toMm(cssDecl(block, 'width'));
     const pad = horizontalPaddingMm(cssDecl(block, 'padding'));
-    const contentMm = widthMm - pad.left - pad.right;
 
     expect(widthMm).toBeCloseTo(PAGE_WIDTH_MM, 1);
-    expect(pad.left).toBeGreaterThanOrEqual(STUB_MM - 0.05);
-    expect(pad.right).toBeGreaterThanOrEqual(STUB_MM - 0.05);
-    expect(contentMm).toBeLessThanOrEqual(TEAROFF_BODY_MM + 0.05);
+    // right edge of the ink measured from the paper's left edge
+    expect(widthMm - pad.right).toBeLessThanOrEqual(PRINTABLE_MM + 0.05);
+    expect(pad.left).toBeGreaterThan(0); // never flush against the unprintable edge
+  });
+
+  test('exposes the per-printer calibration knob', () => {
+    expect(formSource).toMatch(/--offset-x:\s*\{\{#if offsetX\}\}/);
+    expect(cssBlock(formSource, '.receipt-container')).toMatch(
+      /transform:\s*translate\(var\(--offset-x\),\s*var\(--offset-y\)\)/
+    );
   });
 
   test('uses border-box so the 9.5in width includes the stub insets', () => {

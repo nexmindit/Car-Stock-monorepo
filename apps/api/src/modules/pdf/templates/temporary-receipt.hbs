@@ -176,9 +176,20 @@
 <style>
     /* ============================================
        Temporary Receipt - Recreated & Refined
-       Continuous: 9.5in × 5.5in pinfeed (0.5in stubs → 8.5in tear-off body)
+       Continuous: 9.5in × 5.5in pinfeed sheet, but the INK must stay inside the
+       leftmost 8in — an 80-column dot matrix cannot reach past it, so a table
+       centred on the sheet (0.5in..9.0in) lost its right edge off the paper.
        A4: landscape, same table stretched to the page (paperA4)
        ============================================ */
+
+    /* Print calibration (mm, from ?offsetX= / ?offsetY= on the /html endpoint).
+       The physical left margin differs per printer/tractor position; nudge the
+       whole sheet instead of re-editing the layout. Same knob as .ovl in
+       temporary-receipt-bg.hbs. */
+    :root {
+        --offset-x: {{#if offsetX}}{{offsetX}}{{else}}0{{/if}}mm;
+        --offset-y: {{#if offsetY}}{{offsetY}}{{else}}0{{/if}}mm;
+    }
 
     /* Continuous = physical 9.5in pinfeed sheet so the driver does not scale
        a 9in box onto 9.5in paper. A4 is a separate page — never fit the
@@ -215,12 +226,15 @@
         box-sizing: border-box;
         font-family: 'Kanit', sans-serif;
         color: #000;
-        /* 0.5in sides = pinfeed stubs; 3mm top/bottom keeps the old vertical gap */
-        padding: 3mm 12.7mm;
+        /* left 5mm + body 198.2mm = ink ends at 203.2mm (8in) from the paper
+           edge — the printable width of an 80-col head. Right padding is just
+           the leftover 38.1mm of sheet; do NOT re-centre it. */
+        padding: 3mm 38.1mm 3mm 5mm;
         margin: 0;
         font-size: 10px;
         line-height: 1.2;
         position: relative;
+        transform: translate(var(--offset-x), var(--offset-y));
     }
 
     {{#if paperA4}}

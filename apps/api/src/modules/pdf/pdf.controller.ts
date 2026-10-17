@@ -1354,9 +1354,21 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       // padding 0: overlay coordinates map to the pre-printed origin; the full
       // form draws its own frame. Page box comes from the template @page
       // (9.5×5.5 in continuous, A4 landscape, or 9×5.5 in overlay).
+      // Print calibration, mm. Clamped to a number because it lands inside a
+      // <style> block — a raw query string there is a CSS injection.
+      const offsetMm = (raw?: string) => {
+        const n = Number(raw);
+        return Number.isFinite(n) ? Math.max(-30, Math.min(30, n)) : 0;
+      };
+
       const html = await pdfService.renderHtml(
         templateType,
-        { ...data, paperA4 },
+        {
+          ...data,
+          paperA4,
+          offsetX: offsetMm(query.offsetX),
+          offsetY: offsetMm(query.offsetY),
+        },
         {
           width: paperA4 ? '297mm' : withForm ? '9.5in' : '9in',
           height: paperA4 ? '210mm' : '5.5in',
@@ -1376,12 +1388,14 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         lateFee: t.Optional(t.String()),
         withForm: t.Optional(t.String()),
         paper: t.Optional(t.String()),
+        offsetX: t.Optional(t.String()),
+        offsetY: t.Optional(t.String()),
       }),
       detail: {
         tags: ['Documents'],
         summary: 'Render Temporary Receipt HTML (auto-print)',
         description:
-          'Returns standalone HTML that auto-prints via window.print(). Overlay stays 9×5.5 in. withForm=true draws the CSS form on 9.5×5.5 in continuous paper; withForm=true&paper=a4 uses A4 landscape so the driver does not fit the tractor-feed box onto A4.',
+          'Returns standalone HTML that auto-prints via window.print(). Overlay stays 9×5.5 in. withForm=true draws the CSS form on 9.5×5.5 in continuous paper (ink kept inside the leftmost 8 in the print head can reach); withForm=true&paper=a4 uses A4 landscape so the driver does not fit the tractor-feed box onto A4. offsetX/offsetY nudge the whole sheet in mm (-30..30) to calibrate a printer.',
       },
     }
   )
