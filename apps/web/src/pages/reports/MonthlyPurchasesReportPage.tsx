@@ -23,6 +23,7 @@ const TYPE_OPTIONS: Array<VehicleType | ''> = [
   'COUPE',
   'CONVERTIBLE',
   'WAGON',
+  'MOTORCYCLE',
 ];
 
 const MONTH_NAMES_TH = [

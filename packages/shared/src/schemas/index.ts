@@ -38,6 +38,7 @@ export const VehicleTypeSchema = z.enum([
   'TRUCK',
   'CROSSOVER',
   'EV',
+  'MOTORCYCLE',
 ]);
 
 export const StockStatusSchema = z.enum(['AVAILABLE', 'RESERVED', 'PREPARING', 'SOLD', 'DEMO']);

@@ -1,7 +1,11 @@
+import { VehicleTypeSchema } from '@car-stock/shared/schemas';
 import { Elysia, t } from 'elysia';
 import { vehiclesService } from './vehicles.service';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { authService } from '../auth/auth.service';
+
+// Same list as the DB enum — a hand-kept subset here rejected types the form offers.
+const vehicleTypeT = t.Union(VehicleTypeSchema.options.map((v) => t.Literal(v)));
 
 export const vehicleRoutes = new Elysia({ prefix: '/vehicles' })
   // Get all vehicle models
@@ -125,14 +129,7 @@ export const vehicleRoutes = new Elysia({ prefix: '/vehicles' })
         model: t.String({ minLength: 1 }),
         variant: t.Optional(t.String()),
         year: t.Number(),
-        type: t.Union([
-          t.Literal('SUV'),
-          t.Literal('SEDAN'),
-          t.Literal('PICKUP'),
-          t.Literal('HATCHBACK'),
-          t.Literal('MPV'),
-          t.Literal('EV'),
-        ]),
+        type: vehicleTypeT,
         primaryColor: t.Optional(t.String()),
         secondaryColor: t.Optional(t.String()),
         colorNotes: t.Optional(t.String()),
@@ -171,14 +168,7 @@ export const vehicleRoutes = new Elysia({ prefix: '/vehicles' })
         variant: t.Optional(t.String()),
         year: t.Optional(t.Number()),
         type: t.Optional(
-          t.Union([
-            t.Literal('SUV'),
-            t.Literal('SEDAN'),
-            t.Literal('PICKUP'),
-            t.Literal('HATCHBACK'),
-            t.Literal('MPV'),
-            t.Literal('EV'),
-          ])
+          vehicleTypeT
         ),
         primaryColor: t.Optional(t.String()),
         secondaryColor: t.Optional(t.String()),

@@ -245,6 +245,7 @@ export default function StockReportPage() {
             <option value="HATCHBACK">แฮทช์แบ็ก</option>
             <option value="MPV">MPV</option>
             <option value="VAN">ตู้</option>
+            <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
           </select>
         </div>
         {attrSelects.map(([key, label, values]) => (

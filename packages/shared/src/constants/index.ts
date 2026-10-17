@@ -175,6 +175,7 @@ export const VEHICLE_TYPE_LABELS = {
   TRUCK: 'Truck',
   CROSSOVER: 'Crossover',
   EV: 'Electric Vehicle',
+  MOTORCYCLE: 'มอเตอร์ไซค์',
 } as const;
 
 export const QUOTATION_STATUS_LABELS = {

@@ -233,6 +233,7 @@ export default function VehicleFormPage() {
                   <option value="TRUCK">Truck</option>
                   <option value="CROSSOVER">Crossover</option>
                   <option value="EV">EV (ไฟฟ้า)</option>
+                  <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
                 </select>
               </div>
             </div>
