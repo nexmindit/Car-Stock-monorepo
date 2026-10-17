@@ -715,7 +715,7 @@ export const MonthlyPurchasesItemSchema = z.object({
   parkingSlot: z.string(),
   customerName: z.string().nullable(),
   soldDate: z.string().nullable(),
-  salesperson: z.string().nullable(),
+  purchasedBy: z.string().nullable(),
   notes: z.string().nullable(),
 });
 

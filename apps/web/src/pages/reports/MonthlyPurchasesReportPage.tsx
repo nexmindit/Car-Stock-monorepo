@@ -75,7 +75,7 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
       สถานที่จอด: i.parkingSlot,
       ชื่อลูกค้า: i.customerName ?? '-',
       วันที่ขาย: i.soldDate ? i.soldDate.split('T')[0] : '-',
-      Sale: i.salesperson ?? '-',
+      ผู้จัดซื้อ: i.purchasedBy ?? '-',
       หมายเหตุ: i.notes ?? '-',
     });
 
@@ -245,7 +245,7 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
                   'ที่จอด',
                   'ลูกค้า',
                   'วันขาย',
-                  'Sale',
+                  'ผู้จัดซื้อ',
                   'หมายเหตุ',
                 ].map((h) => (
                   <th key={h} className="px-2 py-2 text-left font-medium whitespace-nowrap">
@@ -271,7 +271,7 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
                   <td className="px-2 py-1">{i.parkingSlot}</td>
                   <td className="px-2 py-1">{i.customerName ?? '-'}</td>
                   <td className="px-2 py-1">{i.soldDate?.split('T')[0] ?? '-'}</td>
-                  <td className="px-2 py-1">{i.salesperson ?? '-'}</td>
+                  <td className="px-2 py-1">{i.purchasedBy ?? '-'}</td>
                   <td className="px-2 py-1">{i.notes ?? '-'}</td>
                 </tr>
               ))}

@@ -1616,15 +1616,20 @@ export async function getMonthlyPurchasesReport(params: {
     where,
     include: {
       vehicleModel: { select: { brand: true, model: true, variant: true, type: true } },
-      sale: {
-        include: {
-          customer: { select: { name: true } },
-          createdBy: { select: { firstName: true, lastName: true } },
-        },
-      },
+      sale: { include: { customer: { select: { name: true } } } },
     },
     orderBy: { arrivalDate: 'asc' },
   });
+
+  // ผู้จัดซื้อ = the user who keyed the stock in. Stock has no createdBy column;
+  // every create writes a CREATE_STOCK activity log, so read it from there.
+  const createLogs = await db.activityLog.findMany({
+    where: { entity: 'STOCK', action: 'CREATE_STOCK', entityId: { in: stocks.map((s) => s.id) } },
+    select: { entityId: true, user: { select: { firstName: true, lastName: true } } },
+  });
+  const purchasedByStock = new Map(
+    createLogs.map((l) => [l.entityId, `${l.user.firstName} ${l.user.lastName}`.trim()])
+  );
 
   const items = stocks.map((s, idx) => {
     const gross = toNumber(s.baseCost);
@@ -1645,9 +1650,7 @@ export async function getMonthlyPurchasesReport(params: {
       parkingSlot: s.parkingSlot || '-',
       customerName: s.sale?.customer?.name ?? null,
       soldDate: s.soldDate ? s.soldDate.toISOString() : null,
-      salesperson: s.sale?.createdBy
-        ? `${s.sale.createdBy.firstName} ${s.sale.createdBy.lastName}`
-        : null,
+      purchasedBy: purchasedByStock.get(s.id) ?? null,
       notes: s.notes ?? null,
     };
   });
