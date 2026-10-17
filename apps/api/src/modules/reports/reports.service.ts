@@ -101,7 +101,9 @@ export async function getDailyPaymentReport(params: DailyPaymentParams) {
         select: { id: true, saleNumber: true },
       },
     },
-    orderBy: { paymentDate: 'desc' },
+    // เรียงตามวันที่เอกสาร like the legacy sheet. paymentDate is a day (midnight),
+    // so the receipt number is what orders rows within a day.
+    orderBy: [{ paymentDate: 'asc' }, { receiptNumber: 'asc' }],
   });
 
   // Transform data

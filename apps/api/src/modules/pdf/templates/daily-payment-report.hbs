@@ -33,7 +33,7 @@
         <th style="width: 7%" class="text-right">จำนวนเงิน</th>
         <th style="width: 6%" class="text-right">ภาษีขาย</th>
         <th style="width: 7%" class="text-right">รวมทั้งสิ้น</th>
-        <th style="width: 6%" class="text-right">ลูกค้าพ. ที่จ่าย</th>
+        <th style="width: 6%" class="text-right">ลูกค้าหัก ณ ที่จ่าย</th>
         <th style="width: 5%" class="text-right">เงินสด</th>
         <th style="width: 5%" class="text-right">เช็ค</th>
         <th style="width: 6%" class="text-right">ค่าธรรมเนียม</th>
@@ -43,6 +43,7 @@
       </tr>
     </thead>
     <tbody>
+      {{#each days}}
       {{#each payments}}
       <tr>
         <td>{{formatThaiDate paymentDate 'numeric'}}</td>
@@ -68,7 +69,7 @@
         <td></td>
         <td class="num text-right">{{formatCurrency summary.baseAmount false}}</td>
         <td class="num text-right">{{formatCurrency summary.vatAmount false}}</td>
-        <td class="num text-right">{{formatCurrency summary.totalAmount false}}</td>
+        <td class="num text-right">{{formatCurrency summary.amount false}}</td>
         <td class="num text-right">{{formatCurrency summary.customerPaidAmount false}}</td>
         <td class="num text-right">{{formatCurrency summary.cashAmount false}}</td>
         <td class="num text-right">{{formatCurrency summary.chequeAmount false}}</td>
@@ -77,6 +78,7 @@
         <td class="num text-right">{{formatCurrency summary.otherIncomeAmount false}}</td>
         <td class="num text-right">{{formatCurrency summary.otherExpenseAmount false}}</td>
       </tr>
+      {{/each}}
       <tr class="row-grand-total">
         <td colspan="3">รวมทั้งสิ้น</td>
         <td>{{summary.totalCount}} รายการ</td>
@@ -97,7 +99,7 @@
 </div>
 
 <div class="footer" style="margin-top: 30px; text-align: right; font-size: 9px; color: #666;">
-  พิมพ์เมื่อ: {{formatThaiDateWithDay (currentThaiDate)}}
+  พิมพ์เมื่อ: {{currentThaiDate}}
 </div>
 
 <style>

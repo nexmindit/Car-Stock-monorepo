@@ -5,7 +5,6 @@
 
 import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from '@car-stock/shared/constants';
 import { computeDeliveryTotal, sumCustomCustomerCharges } from '@car-stock/shared/finance';
-import { splitVat } from '@car-stock/shared/formulas';
 import { DEFAULT_VEHICLE_CARD_LAYOUT } from '@car-stock/shared/schemas';
 import { Elysia, t } from 'elysia';
 import { generateContractNumber, getCurrentContractNumberFormat } from '../../lib/contractNumber';
@@ -1528,20 +1527,20 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
             },
           },
         },
-        orderBy: {
-          paymentDate: 'asc',
-        },
+        orderBy: [{ paymentDate: 'asc' }, { receiptNumber: 'asc' }],
       });
 
       // Calculate summary
       const totalAmount = dailyPaymentReport.reduce((sum, p) => sum + Number(p.amount), 0);
       const totalCount = dailyPaymentReport.length;
 
-      // VAT-inclusive split via shared helper. Layout keeps zero stub columns for
-      // legacy parity; description/notes stay on the payment API for on-screen use.
+      // These rows are temporary receipts (ใบรับเงินชั่วคราว), not tax invoices: booking
+      // fees, refundable red-plate deposits and registration fees carry no output VAT
+      // here. Match the customer's legacy report — full amount, ภาษีขาย left blank.
       const mappedPayments = dailyPaymentReport.map((p) => {
         const amount = Number(p.amount);
-        const { net: baseAmount, vat: vatAmount } = splitVat(amount);
+        const baseAmount = amount;
+        const vatAmount = 0;
         return {
           paymentDate: p.paymentDate,
           receiptNumber: p.receiptNumber,

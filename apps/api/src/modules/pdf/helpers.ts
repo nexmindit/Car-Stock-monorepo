@@ -312,3 +312,38 @@ export function formatPercentage(value: number | string): string {
   if (isNaN(num)) return '-';
   return `${num.toFixed(2)}%`;
 }
+
+const DAILY_PAYMENT_SUM_KEYS = [
+  'baseAmount',
+  'vatAmount',
+  'amount',
+  'customerPaidAmount',
+  'cashAmount',
+  'chequeAmount',
+  'feeAmount',
+  'transferAmount',
+  'otherIncomeAmount',
+  'otherExpenseAmount',
+] as const;
+
+type DailyPaymentRow = { paymentDate: Date | string } & Partial<
+  Record<(typeof DAILY_PAYMENT_SUM_KEYS)[number], number>
+>;
+
+/**
+ * รายงานรายวันรับเงิน: one group per document day with its รวมประจำวัน, in input
+ * order (callers sort by date then receipt no.). Day key is the stored calendar
+ * day — paymentDate is saved as midnight, so read it in UTC, never local time.
+ */
+export function groupPaymentsByDay<T extends DailyPaymentRow>(payments: T[]) {
+  const days: { date: string; payments: T[]; summary: Record<string, number> }[] = [];
+  for (const p of payments) {
+    const date = new Date(p.paymentDate).toISOString().slice(0, 10);
+    if (days.at(-1)?.date !== date) days.push({ date, payments: [], summary: { totalCount: 0 } });
+    const day = days[days.length - 1];
+    day.payments.push(p);
+    day.summary.totalCount += 1;
+    for (const k of DAILY_PAYMENT_SUM_KEYS) day.summary[k] = (day.summary[k] ?? 0) + (p[k] ?? 0);
+  }
+  return days;
+}

@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { splitVat } from '@car-stock/shared/formulas';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { authService } from '../auth/auth.service';
 import { formatThaiDate } from '../pdf/helpers';
@@ -95,10 +94,12 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
 
-      // VAT-inclusive split (shared formula). Deposit rows use same split as
-      // legacy sheet layout; non-taxable payment types would need an explicit flag.
+      // These rows are temporary receipts (ใบรับเงินชั่วคราว), not tax invoices: booking
+      // fees, refundable red-plate deposits and registration fees carry no output VAT
+      // here. Match the customer's legacy report — full amount, ภาษีขาย left blank.
       const enrichedPayments = result.payments.map((p) => {
-        const { net: baseAmount, vat: vatAmount } = splitVat(p.amount);
+        const baseAmount = p.amount;
+        const vatAmount = 0;
         // PaymentForm "หมายเหตุ" (sale mode) is stored in description; edit form uses notes.
         const itemDetail = p.description || p.notes || '';
         return {

@@ -22,6 +22,7 @@ import {
   formatThaiDate,
   formatThaiDateWithDay,
   getCurrentThaiDate,
+  groupPaymentsByDay,
   numberToThaiText,
   safeString,
 } from './helpers';
@@ -900,7 +901,11 @@ export class PdfService {
    * Generate Daily Payment Report PDF
    */
   public async generateDailyPaymentReport(data: DailyPaymentReportData): Promise<Buffer> {
-    return this.generatePdf(PdfTemplateType.DAILY_PAYMENT_REPORT, data, { landscape: true });
+    return this.generatePdf(
+      PdfTemplateType.DAILY_PAYMENT_REPORT,
+      { ...data, days: groupPaymentsByDay(data.payments) },
+      { landscape: true }
+    );
   }
 
   /**

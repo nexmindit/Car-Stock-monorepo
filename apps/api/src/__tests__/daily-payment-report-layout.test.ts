@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import Handlebars from 'handlebars';
+import { groupPaymentsByDay } from '../modules/pdf/helpers';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,10 +57,7 @@ describe('daily payment report layout — amount overflow', () => {
     Handlebars.registerHelper('formatThaiDateWithDay', (v: string) => v);
     Handlebars.registerHelper('currentThaiDate', () => '2026-08-18');
 
-    const html = Handlebars.compile(source)({
-      header: { companyName: 'บริษัท วีบียอนด์ อินโนเวชั่น จำกัด' },
-      dateRange: '18/08/2569 ถึง 18/08/2569',
-      payments: [
+    const payments = [
         {
           paymentDate: '2026-08-18',
           receiptNumber: 'RCPT-2608-0039',
@@ -70,7 +68,12 @@ describe('daily payment report layout — amount overflow', () => {
           amount: 200000,
           transferAmount: 200000,
         },
-      ],
+    ];
+    const html = Handlebars.compile(source)({
+      header: { companyName: 'บริษัท วีบียอนด์ อินโนเวชั่น จำกัด' },
+      dateRange: '18/08/2569 ถึง 18/08/2569',
+      payments,
+      days: groupPaymentsByDay(payments), // what PdfService passes the template
       summary: {
         totalCount: 2,
         baseAmount: 189719.63,

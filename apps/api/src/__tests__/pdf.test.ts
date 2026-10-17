@@ -198,11 +198,10 @@ describe('PdfService — Puppeteer engine', () => {
     it('should generate daily payment report PDF', async () => {
       const data: DailyPaymentReportData = {
         header: mockHeader,
-        reportDate: '2026-03-19',
-        generatedBy: 'Admin',
-        items: [
+        dateRange: '19/03/2569 ถึง 19/03/2569',
+        payments: [
           {
-            no: 1,
+            paymentDate: '2026-03-19T00:00:00.000Z',
             receiptNumber: 'RC-001',
             customerName: 'ลูกค้า ทดสอบ',
             customerCode: 'C001',
