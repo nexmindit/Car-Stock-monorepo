@@ -1444,12 +1444,18 @@ export interface DailySnapshotInputStock {
   status: 'AVAILABLE' | 'DEMO';
 }
 
+/** Stock colors are free text ("WHITE", "White", "orange"); fold case so one color is one column. */
+const canonicalColor = (c: string) =>
+  c.trim().toLowerCase().replace(/(^|\s)\S/g, (ch) => ch.toUpperCase());
+
 export function buildDailySnapshot(args: {
   reservations: DailySnapshotInputReservation[];
   stocks: DailySnapshotInputStock[];
   date: string;
 }) {
-  const { reservations, stocks, date } = args;
+  const { date } = args;
+  const reservations = args.reservations.map((r) => ({ ...r, color: canonicalColor(r.color) }));
+  const stocks = args.stocks.map((s) => ({ ...s, color: canonicalColor(s.color) }));
 
   const colorSet = new Set<string>();
   for (const r of reservations) if (r.vehicleModelId) colorSet.add(r.color);
@@ -1539,6 +1545,10 @@ export async function getDailyStockSnapshot(params: { date: Date }) {
     db.sale.findMany({
       where: {
         status: { in: ['RESERVED', 'PREPARING'] as SaleStatus[] },
+        // Only bookings still waiting for a car. Once a VIN is linked that unit
+        // has already left the AVAILABLE count — counting the booking too would
+        // double-subtract and inflate ยอดที่ต้องสั่งซื้อ.
+        stockId: null,
         createdAt: { lte: snapshotDate },
       },
       include: {

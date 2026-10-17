@@ -13,6 +13,7 @@ import { usePermission } from '../../hooks/usePermission';
 import { useMutationHandler, useErrorHandler } from '../../hooks/useErrorHandler';
 import { customerService, type Customer } from '../../services/customer.service';
 import { stockService, type Stock } from '../../services/stock.service';
+import { vehicleService, type VehicleModel } from '../../services/vehicle.service';
 import { MainLayout } from '../../components/layout';
 import { useToast } from '../../components/toast';
 import { DatePicker } from '../../components/ui/date-picker';
@@ -29,8 +30,8 @@ import { PriceSourceModal, type PriceSource } from '../../components/PriceSource
 
 const DEMO_STOCK_WARNING = 'รถ Demo ไม่สามารถเลือกขายได้';
 
-// Note: This form is now for Direct Sales only
-// Reservation Sales should be created via Quotation conversion
+// Creates DIRECT_SALE (pick a VIN now) or RESERVATION_SALE (pick model + color;
+// VIN is assigned later from the sale detail page when the car arrives).
 
 /** Local calendar day as yyyy-MM-dd (not UTC from toISOString). */
 function toLocalYmd(date: Date = new Date()): string {
@@ -44,6 +45,8 @@ function toLocalYmd(date: Date = new Date()): string {
 interface FormData {
   customerId: string;
   stockId: string;
+  vehicleModelId: string;
+  preferredExtColor: string;
   totalAmount: number;
   depositAmount: number;
   paymentMode: PaymentMode;
@@ -94,6 +97,8 @@ export default function SalesFormPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [availableStocks, setAvailableStocks] = useState<Stock[]>([]);
+  const [vehicleModels, setVehicleModels] = useState<VehicleModel[]>([]);
+  const [colorOptions, setColorOptions] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [priceModalOpen, setPriceModalOpen] = useState(false);
@@ -103,6 +108,8 @@ export default function SalesFormPage() {
   const [formData, setFormData] = useState<FormData>({
     customerId: '',
     stockId: '',
+    vehicleModelId: '',
+    preferredExtColor: '',
     totalAmount: 0,
     depositAmount: 0,
     paymentMode: 'CASH',
@@ -144,8 +151,20 @@ export default function SalesFormPage() {
   const fetchInitialData = async () => {
     setLoading(true);
     await executeQuery(
-      stockService.getAvailable().then((stocksRes) => {
+      Promise.all([
+        stockService.getAvailable(),
+        vehicleService.getAllPages(),
+        stockService.getFilterOptions(),
+      ]).then(([stocksRes, modelsRes, filterRes]) => {
         setAvailableStocks(stocksRes);
+        setVehicleModels(modelsRes.data);
+        // Stock colors are free text (White/WHITE) — one entry per color.
+        const seen = new Map<string, string>();
+        for (const c of filterRes.exteriorColors) {
+          const key = c.trim().toLowerCase();
+          if (key && !seen.has(key)) seen.set(key, c.trim());
+        }
+        setColorOptions([...seen.values()].sort((a, b) => a.localeCompare(b)));
       })
     );
     setLoading(false);
@@ -164,6 +183,8 @@ export default function SalesFormPage() {
         setFormData({
           customerId: sale.customer.id,
           stockId: sale.stock?.id || '',
+          vehicleModelId: sale.vehicleModel?.id || '',
+          preferredExtColor: sale.preferredExtColor || '',
           totalAmount: Number(sale.totalAmount) || 0,
           depositAmount: Number(sale.depositAmount) || 0,
           paymentMode: sale.paymentMode,
@@ -326,7 +347,26 @@ export default function SalesFormPage() {
     setPendingStock(null);
   };
 
-  // Removed handleVehicleModelSelect - not needed for Direct Sale
+  const selectedModel = vehicleModels.find((m) => m.id === formData.vehicleModelId);
+
+  const modelOptions: SearchSelectOption<VehicleModel>[] = useMemo(
+    () =>
+      vehicleModels.map((m) => ({
+        value: m.id,
+        label: `${m.brand} ${m.model}${m.variant ? ` ${m.variant}` : ''}`,
+        description: `ปี ${m.year} • ราคา ฿${Number(m.price).toLocaleString()}`,
+        data: m,
+      })),
+    [vehicleModels]
+  );
+
+  const handleModelSelect = (value: string, option?: SearchSelectOption<VehicleModel>) => {
+    setFormData((prev) => ({
+      ...prev,
+      vehicleModelId: value,
+      totalAmount: option?.data ? Number(option.data.price) || prev.totalAmount : prev.totalAmount,
+    }));
+  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -335,12 +375,14 @@ export default function SalesFormPage() {
       newErrors.customerId = 'กรุณาเลือกลูกค้า';
     }
 
-    // Stock required for new direct sales; reservation sales may assign stock later
-    if (!isEditing && !formData.stockId) {
+    // Direct sale needs a VIN now; a booking needs model + color so the daily
+    // stock report can count it, and gets its VIN later.
+    if (saleType === 'DIRECT_SALE' && !formData.stockId) {
       newErrors.stockId = 'กรุณาเลือก Stock สำหรับการขายตรง';
     }
-    if (isEditing && saleType === 'DIRECT_SALE' && !formData.stockId) {
-      newErrors.stockId = 'กรุณาเลือก Stock สำหรับการขายตรง';
+    if (saleType === 'RESERVATION_SALE' && !formData.stockId) {
+      if (!formData.vehicleModelId) newErrors.vehicleModelId = 'กรุณาเลือกรุ่นรถที่จอง';
+      if (!formData.preferredExtColor) newErrors.preferredExtColor = 'กรุณาเลือกสีที่จอง';
     }
 
     if (formData.totalAmount <= 0) {
@@ -373,8 +415,9 @@ export default function SalesFormPage() {
     setSaving(true);
     clearFieldErrors();
 
-    // Create always DIRECT_SALE. Update must not send `type` (immutable) and
-    // must omit empty stockId so Prisma does not get an invalid FK.
+    // Update must not send `type` (immutable) and must omit empty stockId so
+    // Prisma does not get an invalid FK. Booked model/color only matter while
+    // no VIN is linked (the linked stock owns the model otherwise).
     const sharedFields = {
       totalAmount: formData.totalAmount,
       depositAmount: formData.depositAmount || undefined,
@@ -399,6 +442,12 @@ export default function SalesFormPage() {
       freebiesSnapshot: formData.freebiesSnapshot,
       financeEditedKeys: formData.financeEditedKeys,
       customLines: formData.customLines,
+      ...(!formData.stockId && formData.vehicleModelId
+        ? {
+            vehicleModelId: formData.vehicleModelId,
+            preferredExtColor: formData.preferredExtColor || undefined,
+          }
+        : {}),
     };
 
     const data: CreateSaleData | UpdateSaleData = isEditing
@@ -412,9 +461,9 @@ export default function SalesFormPage() {
           ...sharedFields,
         }
       : {
-          type: 'DIRECT_SALE' as const,
+          type: saleType,
           customerId: formData.customerId,
-          stockId: formData.stockId,
+          ...(formData.stockId ? { stockId: formData.stockId } : {}),
           ...sharedFields,
         };
 
@@ -429,7 +478,7 @@ export default function SalesFormPage() {
     totalAmount: formData.totalAmount,
     carDiscount: formData.carDiscount,
     customCustomerCharges: sumCustomCustomerCharges(formData.customLines),
-    vehicleModelPrice: selectedStock?.vehicleModel?.price,
+    vehicleModelPrice: selectedStock?.vehicleModel?.price ?? selectedModel?.price,
     expectedSalePrice: selectedStock?.expectedSalePrice,
   });
 
@@ -462,26 +511,58 @@ export default function SalesFormPage() {
                 ? saleType === 'RESERVATION_SALE'
                   ? 'แก้ไขการขาย (ผ่านการจอง)'
                   : 'แก้ไขการขาย'
-                : 'สร้างการขายตรง'}
+                : 'สร้างการขาย'}
             </h1>
             <p className="text-sm text-gray-700 mt-1">
               {isEditing
                 ? 'แก้ไขยอดเงิน วันที่รับรถ และรายละเอียดการขายได้ที่นี่'
-                : 'สำหรับการขายผ่านการจอง กรุณาสร้างใบเสนอราคาก่อน แล้วแปลงเป็นการขาย'}
+                : 'ขายตรง = เลือกรถจากสต็อกเลย • จองรถ = เลือกรุ่น/สี แล้วผูกเลข VIN ภายหลัง'}
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Sale Type Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <Car className="h-5 w-5 text-blue-600" />
-              <span className="font-medium text-blue-800">ขายตรง (Direct Sale)</span>
-            </div>
-            <p className="text-sm text-blue-600 mt-1">
-              เลือกรถจาก Stock ที่มีอยู่ → รับเงิน → ส่งมอบรถ
-            </p>
+          {/* Sale Type (fixed after create) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(
+              [
+                ['DIRECT_SALE', 'ขายตรง (Direct Sale)', 'เลือกรถจาก Stock ที่มีอยู่ → รับเงิน → ส่งมอบรถ'],
+                [
+                  'RESERVATION_SALE',
+                  'จองรถ (ยังไม่ผูก VIN)',
+                  'เลือกรุ่น + สี → รับเงินจอง → ผูก VIN เมื่อรถมาถึง',
+                ],
+              ] as const
+            ).map(([type, title, hint]) => {
+              const active = saleType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={isEditing}
+                  aria-pressed={active}
+                  onClick={() => {
+                    setSaleType(type);
+                    setErrors({});
+                  }}
+                  className={`text-left rounded-lg border p-4 transition-colors ${
+                    active
+                      ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400'
+                      : 'bg-white border-gray-200 hover:border-blue-300'
+                  } ${isEditing && !active ? 'hidden' : ''} disabled:cursor-default`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Car className={`h-5 w-5 ${active ? 'text-blue-600' : 'text-gray-500'}`} />
+                    <span className={`font-medium ${active ? 'text-blue-800' : 'text-gray-800'}`}>
+                      {title}
+                    </span>
+                  </div>
+                  <p className={`text-sm mt-1 ${active ? 'text-blue-600' : 'text-gray-600'}`}>
+                    {hint}
+                  </p>
+                </button>
+              );
+            })}
           </div>
 
           {/* Customer Selection */}
@@ -526,8 +607,42 @@ export default function SalesFormPage() {
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Stock: required for direct sale; optional for reservation (can assign later) */}
-              <div className="md:col-span-2">
+              {/* Booking: model + color now, VIN later (from the sale detail page) */}
+              {saleType === 'RESERVATION_SALE' && !formData.stockId && (
+                <>
+                  <SearchSelect<VehicleModel>
+                    value={formData.vehicleModelId}
+                    onChange={handleModelSelect}
+                    options={modelOptions}
+                    label="รุ่นรถที่จอง"
+                    required
+                    placeholder="ค้นหารุ่นรถ..."
+                    error={errors.vehicleModelId}
+                    emptyMessage="ไม่พบรุ่นรถ"
+                    disabled={isCompletedAsAccountant}
+                  />
+                  <SearchSelect<string>
+                    value={formData.preferredExtColor}
+                    onChange={(value) =>
+                      setFormData((prev) => ({ ...prev, preferredExtColor: value }))
+                    }
+                    options={colorOptions.map((c) => ({ value: c, label: c }))}
+                    label="สีภายนอกที่จอง"
+                    required
+                    placeholder="เลือกสี..."
+                    error={errors.preferredExtColor}
+                    emptyMessage="ไม่พบสี"
+                    disabled={isCompletedAsAccountant}
+                  />
+                  <p className="md:col-span-2 text-xs text-gray-500 -mt-2">
+                    ไม่ต้องเลือกเลข VIN — การจองนี้จะนับใน "ยอดจองคงเหลือ" ของรายงานสต็อกประจำวัน
+                    จนกว่าจะผูก VIN ที่หน้ารายละเอียดการขาย
+                  </p>
+                </>
+              )}
+
+              {/* Stock: required for direct sale; booking assigns it later */}
+              <div className={`md:col-span-2 ${saleType === 'RESERVATION_SALE' && !isEditing ? 'hidden' : ''}`}>
                 <SearchSelect<Stock>
                   value={formData.stockId}
                   onChange={handleStockSelect}
@@ -539,7 +654,7 @@ export default function SalesFormPage() {
                       ? 'เลือก / เปลี่ยน Stock (รถในสต็อก)'
                       : 'เลือก Stock (รถที่มีในสต็อก)'
                   }
-                  required={saleType === 'DIRECT_SALE' || !isEditing}
+                  required={saleType === 'DIRECT_SALE'}
                   placeholder="ค้นหาด้วยรุ่น, สี หรือเลข VIN"
                   error={errors.stockId}
                   emptyMessage="ไม่พบ Stock ที่ตรงกับการค้นหา"
