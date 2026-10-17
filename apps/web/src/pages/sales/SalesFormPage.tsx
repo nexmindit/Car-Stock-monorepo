@@ -15,7 +15,6 @@ import { customerService, type Customer } from '../../services/customer.service'
 import { stockService, type Stock } from '../../services/stock.service';
 import { vehicleService, type VehicleModel } from '../../services/vehicle.service';
 import { MainLayout } from '../../components/layout';
-import { useToast } from '../../components/toast';
 import { DatePicker } from '../../components/ui/date-picker';
 import {
   ArrowLeft,
@@ -28,7 +27,6 @@ import {
 import { AsyncSearchSelect, SearchSelect, type SearchSelectOption } from '../../components/ui/search-select';
 import { PriceSourceModal, type PriceSource } from '../../components/PriceSourceModal';
 
-const DEMO_STOCK_WARNING = 'รถ Demo ไม่สามารถเลือกขายได้';
 
 // Creates DIRECT_SALE (pick a VIN now) or RESERVATION_SALE (pick model + color;
 // VIN is assigned later from the sale detail page when the car arrives).
@@ -92,7 +90,6 @@ export default function SalesFormPage() {
     { onSuccess: () => navigate('/sales') }
   );
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
-  const { addToast } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -256,11 +253,8 @@ export default function SalesFormPage() {
       return {
         value: stock.id,
         label: `${stock.vehicleModel.brand} ${stock.vehicleModel.model} - VIN: ${stock.vin.slice(-8)} (${stock.exteriorColor})${isDemo ? ' · รถ Demo' : ''}`,
-        description: isDemo
-          ? `VIN: ${stock.vin} · รถ Demo — เลือกขายไม่ได้`
-          : `VIN: ${stock.vin}${pricePart}`,
+        description: `VIN: ${stock.vin}${isDemo ? ' · รถ Demo' : ''}${pricePart}`,
         data: stock,
-        disabled: isDemo,
       };
     };
     // AVAILABLE first, then DEMO (API already prefers this order)
@@ -295,12 +289,6 @@ export default function SalesFormPage() {
 
   const handleStockSelect = (value: string, option?: SearchSelectOption<Stock>) => {
     const stock = option?.data || null;
-
-    // Belt-and-suspenders: never assign DEMO even if disabled flag is bypassed
-    if (stock?.status === 'DEMO') {
-      addToast(DEMO_STOCK_WARNING, 'warning');
-      return;
-    }
 
     setSelectedStock(stock);
 
@@ -648,7 +636,6 @@ export default function SalesFormPage() {
                   onChange={handleStockSelect}
                   options={stockOptions}
                   filterFn={filterStockOption}
-                  onDisabledSelect={() => addToast(DEMO_STOCK_WARNING, 'warning')}
                   label={
                     saleType === 'RESERVATION_SALE'
                       ? 'เลือก / เปลี่ยน Stock (รถในสต็อก)'

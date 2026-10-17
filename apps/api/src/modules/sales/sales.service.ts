@@ -5,6 +5,7 @@ import { authService } from '../auth/auth.service';
 import { campaignFormulasService } from '../campaigns/campaign-formulas.service';
 import { campaignDay } from '../../lib/campaignDate';
 import { Decimal } from '@prisma/client/runtime/library';
+import type { StockStatus } from '@prisma/client';
 import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '../../lib/errors';
 import {
   isNotesOnlySaleUpdate,
@@ -28,6 +29,10 @@ const toNumberOrNull = (val: Decimal | number | null | undefined): number | null
   if (typeof val === 'number') return val;
   return Number(val);
 };
+
+/** A car can be sold from stock or straight off demo duty (dealers sell demo units). */
+const SELLABLE_STOCK_STATUSES: StockStatus[] = ['AVAILABLE', 'DEMO'];
+const isSellableStockStatus = (status: StockStatus) => SELLABLE_STOCK_STATUSES.includes(status);
 
 /**
  * Domain rule: when a stock unit is linked, its model is the only allowed
@@ -407,11 +412,7 @@ export class SalesService {
       if (!stock) {
         throw new NotFoundError('Stock');
       }
-
-      if (stock.status === 'DEMO') {
-        throw new BadRequestError('รถ Demo ไม่สามารถขายได้');
-      }
-      if (stock.status !== 'AVAILABLE') {
+      if (!isSellableStockStatus(stock.status)) {
         throw new BadRequestError('Stock is not available');
       }
 
@@ -534,7 +535,7 @@ export class SalesService {
       // Reserve stock only if still AVAILABLE (atomic vs concurrent sales)
       if (validated.stockId) {
         const reserved = await tx.stock.updateMany({
-          where: { id: validated.stockId, status: 'AVAILABLE', deletedAt: null },
+          where: { id: validated.stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
           data: {
             status: 'RESERVED',
             ...(createStockNotes !== undefined ? { notes: createStockNotes } : {}),
@@ -875,16 +876,13 @@ export class SalesService {
         if (!newStock) {
           throw new NotFoundError('Stock');
         }
-        if (newStock.status === 'DEMO') {
-          throw new BadRequestError('รถ Demo ไม่สามารถขายได้');
-        }
-        if (newStock.status !== 'AVAILABLE') {
+        if (!isSellableStockStatus(newStock.status)) {
           throw new BadRequestError('รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)');
         }
 
         // Atomic claim: only succeeds if still AVAILABLE
         const claimed = await tx.stock.updateMany({
-          where: { id: incomingStockId!, status: 'AVAILABLE', deletedAt: null },
+          where: { id: incomingStockId!, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
           data: { status: newStockStatus! },
         });
         if (claimed.count === 0) {
@@ -1265,17 +1263,14 @@ export class SalesService {
       if (!newStock) {
         throw new NotFoundError('Stock');
       }
-      if (newStock.status === 'DEMO') {
-        throw new BadRequestError('รถ Demo ไม่สามารถขายได้');
-      }
-      if (newStock.status !== 'AVAILABLE') {
+      if (!isSellableStockStatus(newStock.status)) {
         throw new BadRequestError('Stock is not available');
       }
 
       const sharedNotes = pickSharedNotes(existingSale.notes, newStock.notes);
 
       const claimed = await tx.stock.updateMany({
-        where: { id: stockId, status: 'AVAILABLE', deletedAt: null },
+        where: { id: stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
         data: { status: stockStatus, notes: sharedNotes },
       });
       if (claimed.count === 0) {

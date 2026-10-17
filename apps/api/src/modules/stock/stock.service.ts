@@ -729,8 +729,7 @@ export class StockService {
 
   /**
    * Stock units shown when picking a car for a sale.
-   * Includes DEMO so staff can see demo cars in the list; sale/assign still
-   * reject DEMO on the write path — UI must disable selection.
+   * Includes DEMO: demo units are sellable too (the picker badges them).
    */
   async getAvailableStock() {
     const stocks = await db.stock.findMany({
