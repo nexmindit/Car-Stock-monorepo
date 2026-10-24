@@ -544,6 +544,35 @@ export const CreatePaymentSchema = z.object({
   receivingBranch: z.string().optional(),
 });
 
+/**
+ * จองรถจากหน้าชำระเงิน: one step creates a RESERVATION_SALE (model + color, no
+ * VIN yet) and its DEPOSIT receipt. totalAmount defaults to the model price.
+ */
+export const CreateReservationDepositSchema = z
+  .object({
+    customerId: z.string().min(1, 'Customer is required'),
+    vehicleModelId: z.string().min(1, 'Vehicle model is required'),
+    preferredExtColor: z.string().trim().min(1, 'Exterior color is required'),
+    preferredIntColor: z.string().trim().optional(),
+    totalAmount: z.number().positive('Total amount must be positive').optional(),
+    depositAmount: z.number().positive('Deposit must be positive'),
+
+    paymentDate: z.coerce.date().default(() => new Date()),
+    paymentMethod: PaymentMethodSchema,
+    referenceNumber: z.string().optional(),
+    receivingBank: z.string().optional(),
+    receivingBankName: z.string().optional(),
+    receivingAccountNumber: z.string().optional(),
+    receivingBranch: z.string().optional(),
+    notes: z.string().optional(),
+    // Optional business date of the booking (backdating, like CreateSaleSchema).
+    createdAt: z.coerce.date().optional(),
+  })
+  .refine((d) => d.totalAmount === undefined || d.depositAmount <= d.totalAmount, {
+    message: 'Deposit cannot exceed the car price',
+    path: ['depositAmount'],
+  });
+
 export const UpdatePaymentSchema = z.object({
   description: z.string().optional(),
   paymentDate: z.coerce.date().optional(),

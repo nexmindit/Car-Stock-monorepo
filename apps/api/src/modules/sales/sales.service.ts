@@ -1,6 +1,5 @@
 import { db } from '../../lib/db';
 import { CreateSaleSchema, UpdateSaleSchema, SaleFilterSchema } from '@car-stock/shared/schemas';
-import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
 import { authService } from '../auth/auth.service';
 import { campaignFormulasService } from '../campaigns/campaign-formulas.service';
 import { campaignDay } from '../../lib/campaignDate';
@@ -18,6 +17,8 @@ import {
   shouldRecalcRemaining,
 } from './sales-remaining';
 import { checkStockSellable, logDemoStockSold } from './demo-sale.service';
+import { findActiveCampaignIdForModel } from './reservation-deposit.service';
+import { generateSaleNumber } from './sale-number';
 
 const toNumber = (val: Decimal | number | null | undefined): number => {
   if (val === null || val === undefined) return 0;
@@ -154,46 +155,6 @@ async function createFinanceLines(
 
 export class SalesService {
   /**
-   * Generate sale number
-   */
-  private async generateSaleNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const prefix = NUMBER_PREFIXES.SALE;
-
-    // Atomic read-modify-write inside a serializable transaction prevents the
-    // concurrent-find-then-update race that produces duplicate sale numbers.
-    // We can't use Prisma's compound-key upsert here because the existing year-
-    // only sequences have `month: null`, which isn't addressable via the
-    // `prefix_year_month` unique selector.
-    const nextNumber = await db.$transaction(
-      async (tx) => {
-        const updated = await tx.numberSequence.updateMany({
-          where: { prefix, year: currentYear, month: null },
-          data: { lastNumber: { increment: 1 } },
-        });
-
-        if (updated.count > 0) {
-          const sequence = await tx.numberSequence.findFirst({
-            where: { prefix, year: currentYear, month: null },
-            select: { lastNumber: true },
-          });
-          return sequence!.lastNumber;
-        }
-
-        const created = await tx.numberSequence.create({
-          data: { prefix, year: currentYear, lastNumber: 1 },
-          select: { lastNumber: true },
-        });
-        return created.lastNumber;
-      },
-      { isolationLevel: 'Serializable' }
-    );
-
-    // Format: SL-YYYY-XXXX
-    return `${prefix}-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
-  }
-
-  /**
    * Get all sales with pagination and filters
    */
   async getAllSales(params: any, currentUser: any) {
@@ -257,6 +218,7 @@ export class SalesService {
             select: {
               id: true,
               vin: true,
+              exteriorColor: true,
               vehicleModel: {
                 select: {
                   brand: true,
@@ -266,13 +228,17 @@ export class SalesService {
               },
             },
           },
+          // Booked model + colors — what the car is while no VIN is linked.
           vehicleModel: {
             select: {
+              id: true,
               brand: true,
               model: true,
               variant: true,
             },
           },
+          preferredExtColor: true,
+          preferredIntColor: true,
           createdAt: true,
         },
         skip,
@@ -473,19 +439,7 @@ export class SalesService {
     // overlapping ACTIVE campaigns.
     // vehicleModelId is already resolved from stock when stockId is set.
     if (!validated.campaignId && validated.vehicleModelId) {
-      const activeCampaign = await db.campaign.findFirst({
-        where: {
-          status: 'ACTIVE',
-          startDate: { lte: saleDay },
-          endDate: { gte: saleDay },
-          vehicleModels: { some: { vehicleModelId: validated.vehicleModelId } },
-        },
-        orderBy: { startDate: 'desc' },
-        select: { id: true },
-      });
-      if (activeCampaign) {
-        validated.campaignId = activeCampaign.id;
-      }
+      validated.campaignId = await findActiveCampaignIdForModel(validated.vehicleModelId, saleDay);
     }
 
     const campaignSubsidySnapshot = await campaignFormulasService.computeSaleSubsidySnapshot({
@@ -495,7 +449,7 @@ export class SalesService {
     });
 
     // Generate sale number
-    const saleNumber = await this.generateSaleNumber();
+    const saleNumber = await generateSaleNumber();
 
     // Calculate remaining amount.
     // Buyer-charged fees (insurance / พรบ / registration) are part of what the

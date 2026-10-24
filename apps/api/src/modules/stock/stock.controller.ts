@@ -85,6 +85,25 @@ export const stockRoutes = new Elysia({ prefix: '/stock' })
       },
     }
   )
+  // Color suggestions for booking a model (no VIN yet)
+  .get(
+    '/colors',
+    async ({ query, set, requester }) => {
+      const colors = await stockService.getModelColors(query.vehicleModelId, requester!);
+      set.status = 200;
+      return { success: true, data: colors };
+    },
+    {
+      beforeHandle: authMiddleware,
+      query: t.Object({ vehicleModelId: t.String({ minLength: 1 }) }),
+      detail: {
+        tags: ['Stock'],
+        summary: 'Color suggestions for a vehicle model',
+        description:
+          "Model primary/secondary colors plus distinct colors of that model's stock (case-folded)",
+      },
+    }
+  )
   // Get available stock for sales
   .get(
     '/available',

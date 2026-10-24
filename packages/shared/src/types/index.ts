@@ -5,6 +5,7 @@ import type {
   CreateCampaignSchema,
   CreateCustomerSchema,
   CreatePaymentSchema,
+  CreateReservationDepositSchema,
   CreateQuotationSchema,
   CreateSaleSchema,
   CreateStockSchema,
@@ -115,6 +116,7 @@ export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>;
 export type FinanceCustomLine = z.infer<typeof FinanceCustomLineSchema>;
 export type CreatePaymentInput = z.infer<typeof CreatePaymentSchema>;
+export type CreateReservationDepositInput = z.infer<typeof CreateReservationDepositSchema>;
 export type VoidPaymentInput = z.infer<typeof VoidPaymentSchema>;
 export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>;
 export type UpdateCampaignInput = z.infer<typeof UpdateCampaignSchema>;
