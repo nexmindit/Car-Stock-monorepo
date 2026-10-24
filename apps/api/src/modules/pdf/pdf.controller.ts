@@ -13,6 +13,8 @@ import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { projectCampaignClaimForPdf } from '../reports/campaign-claim-pdf';
 import { reportsService } from '../reports/reports.service';
 import {
+  buildReceiptItems,
+  describeSaleVehicle,
   formatThaiDate,
   numberToThaiText,
   resolveThankYouLetterDate,
@@ -872,6 +874,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
                   vehicleModel: true,
                 },
               },
+              vehicleModel: true,
             },
           },
         },
@@ -888,18 +891,15 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       // Build items: payment type label as main item, description as sub-item
       const typeLabel =
         PAYMENT_TYPE_LABELS[payment.paymentType as keyof typeof PAYMENT_TYPE_LABELS] || 'ค่าชำระเงิน';
-      const carName = sale?.stock?.vehicleModel
-        ? `${sale.stock.vehicleModel.brand} ${sale.stock.vehicleModel.model}`
-        : '';
       const methodLabel =
         PAYMENT_METHOD_LABELS[payment.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] || '';
-      const mainItem = `${typeLabel}${carName ? ` - ${carName}` : ''}`;
-      const items: { description: string; amount: string }[] = [
-        { description: mainItem, amount: payment.amount.toString() },
-      ];
-      if (payment.description) {
-        items.push({ description: payment.description, amount: '' });
-      }
+      // Car on its own line (model + color, also for bookings without a VIN).
+      const items = buildReceiptItems({
+        typeLabel,
+        amount: payment.amount.toString(),
+        vehicle: describeSaleVehicle(sale),
+        description: payment.description,
+      });
 
       const paymentMethodData = buildReceiptPaymentMethod(payment);
 
@@ -966,6 +966,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
                   vehicleModel: true,
                 },
               },
+              vehicleModel: true,
             },
           },
         },
@@ -1001,11 +1002,8 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
           MISCELLANEOUS: 'เบ็ดเตล็ด',
         };
         const label = typeLabels[payment.paymentType] || 'ค่าชำระเงิน';
-        const carName = sale?.stock?.vehicleModel
-          ? `${sale.stock.vehicleModel.brand} ${sale.stock.vehicleModel.model}`
-          : '';
         items.push({
-          description: `${label} ${carName}`.trim(),
+          description: `${label} ${describeSaleVehicle(sale)}`.trim(),
           amount: payment.amount.toString(),
         });
       }
@@ -1015,7 +1013,13 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         receiptNumber: payment.receiptNumber,
         date: payment.paymentDate?.toISOString() || payment.createdAt.toISOString(),
         customer: transformCustomer(customer),
-        car: transformCar(sale?.stock),
+        // No VIN yet → show the booked model + color in the car box.
+        car: transformCar(
+          sale?.stock ??
+            (sale?.vehicleModel
+              ? { vehicleModel: sale.vehicleModel, exteriorColor: sale.preferredExtColor }
+              : null)
+        ),
         items,
         amount: payment.amount.toString(),
         amountText: numberToThaiText(Number(payment.amount)),
@@ -1195,6 +1199,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
                   vehicleModel: true,
                 },
               },
+              vehicleModel: true,
             },
           },
         },
@@ -1211,18 +1216,15 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       // Build items: payment type label as main item, description as sub-item
       const typeLabel =
         PAYMENT_TYPE_LABELS[payment.paymentType as keyof typeof PAYMENT_TYPE_LABELS] || 'ค่าชำระเงิน';
-      const carName = sale?.stock?.vehicleModel
-        ? `${sale.stock.vehicleModel.brand} ${sale.stock.vehicleModel.model}`
-        : '';
       const methodLabel =
         PAYMENT_METHOD_LABELS[payment.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] || '';
-      const mainItem = `${typeLabel}${carName ? ` - ${carName}` : ''}`;
-      const items: { description: string; amount: string }[] = [
-        { description: mainItem, amount: payment.amount.toString() },
-      ];
-      if (payment.description) {
-        items.push({ description: payment.description, amount: '' });
-      }
+      // Car on its own line (model + color, also for bookings without a VIN).
+      const items = buildReceiptItems({
+        typeLabel,
+        amount: payment.amount.toString(),
+        vehicle: describeSaleVehicle(sale),
+        description: payment.description,
+      });
 
       const paymentMethodData = buildReceiptPaymentMethod(payment);
 
@@ -1293,6 +1295,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
             include: {
               customer: true,
               stock: { include: { vehicleModel: true } },
+              vehicleModel: true,
             },
           },
         },
@@ -1308,18 +1311,15 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
 
       const typeLabel =
         PAYMENT_TYPE_LABELS[payment.paymentType as keyof typeof PAYMENT_TYPE_LABELS] || 'ค่าชำระเงิน';
-      const carName = sale?.stock?.vehicleModel
-        ? `${sale.stock.vehicleModel.brand} ${sale.stock.vehicleModel.model}`
-        : '';
       const methodLabel =
         PAYMENT_METHOD_LABELS[payment.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] || '';
-      const mainItem = `${typeLabel}${carName ? ` - ${carName}` : ''}`;
-      const items: { description: string; amount: string }[] = [
-        { description: mainItem, amount: payment.amount.toString() },
-      ];
-      if (payment.description) {
-        items.push({ description: payment.description, amount: '' });
-      }
+      // Car on its own line (model + color, also for bookings without a VIN).
+      const items = buildReceiptItems({
+        typeLabel,
+        amount: payment.amount.toString(),
+        vehicle: describeSaleVehicle(sale),
+        description: payment.description,
+      });
 
       const paymentMethodData = buildReceiptPaymentMethod(payment);
 
@@ -1425,6 +1425,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
                   vehicleModel: true,
                 },
               },
+              vehicleModel: true,
             },
           },
         },
@@ -1441,18 +1442,15 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       // Build items: payment type label as main item, description as sub-item
       const typeLabel =
         PAYMENT_TYPE_LABELS[payment.paymentType as keyof typeof PAYMENT_TYPE_LABELS] || 'ค่าชำระเงิน';
-      const carName = sale?.stock?.vehicleModel
-        ? `${sale.stock.vehicleModel.brand} ${sale.stock.vehicleModel.model}`
-        : '';
       const methodLabel =
         PAYMENT_METHOD_LABELS[payment.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] || '';
-      const mainItem = `${typeLabel}${carName ? ` - ${carName}` : ''}`;
-      const items: { description: string; amount: string }[] = [
-        { description: mainItem, amount: payment.amount.toString() },
-      ];
-      if (payment.description) {
-        items.push({ description: payment.description, amount: '' });
-      }
+      // Car on its own line (model + color, also for bookings without a VIN).
+      const items = buildReceiptItems({
+        typeLabel,
+        amount: payment.amount.toString(),
+        vehicle: describeSaleVehicle(sale),
+        description: payment.description,
+      });
 
       const paymentMethodData = buildReceiptPaymentMethod(payment);
 
