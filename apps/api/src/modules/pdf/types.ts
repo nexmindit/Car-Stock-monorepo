@@ -567,6 +567,8 @@ export interface ProfitLossReportData {
 export interface SalesSummaryReportData {
   header: CompanyHeader;
   dateRange: string;
+  /** Applied status / vehicle-type filters in Thai; empty when none. */
+  filterLabel?: string;
   sales: any[];
   summary: any;
   bySalesperson: any[];

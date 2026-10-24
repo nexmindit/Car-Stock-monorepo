@@ -1,3 +1,5 @@
+import { SALE_STATUS_LABELS } from '@car-stock/shared/constants';
+
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Rate applied on top of staff sales commission (customer-specified 8%). */
@@ -137,4 +139,31 @@ export function computeSaleMoney(input: SaleMoneyInput): SaleMoneyResult {
     (input.salesExpense || 0) +
     campaignSubsidy;
   return { campaignSubsidy, netCarDiscount, netProfit };
+}
+
+/** SaleStatus values the sales summary report can filter by (mirrors schema.prisma). */
+export const SALE_STATUS_FILTER_VALUES = [
+  'RESERVED',
+  'PREPARING',
+  'DELIVERED',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+export type SaleStatusFilter = (typeof SALE_STATUS_FILTER_VALUES)[number];
+
+/**
+ * The filter line printed under the date range on the sales summary PDF, e.g.
+ * "สถานะ: จองแล้ว · ประเภทรถ: เก๋ง". Empty string when no filter is applied.
+ */
+export function describeSalesSummaryFilters(filters: {
+  status?: string;
+  vehicleTypeName?: string;
+}): string {
+  const parts: string[] = [];
+  if (filters.status) {
+    const label = SALE_STATUS_LABELS[filters.status as SaleStatusFilter] ?? filters.status;
+    parts.push(`สถานะ: ${label}`);
+  }
+  if (filters.vehicleTypeName) parts.push(`ประเภทรถ: ${filters.vehicleTypeName}`);
+  return parts.join(' · ');
 }

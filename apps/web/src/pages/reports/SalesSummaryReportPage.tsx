@@ -1,3 +1,4 @@
+import { SALE_STATUS_LABELS } from '@car-stock/shared/constants';
 import type {
   SalesBySalesperson,
   SalesSummaryItem,
@@ -31,6 +32,11 @@ export default function SalesSummaryReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState<string>('');
+  // Filters behind the data on screen; Excel/PDF/print use these so every output matches
+  // what the user is looking at, even if the dropdowns were changed without pressing กรองข้อมูล.
+  const [appliedFilters, setAppliedFilters] = useState<{ status?: string; vehicleType?: string }>(
+    {}
+  );
   const { activeTypes, allTypes, typeLabel } = useVehicleTypes();
 
   // Default dates (first day of month to today)
@@ -43,13 +49,13 @@ export default function SalesSummaryReportPage() {
     try {
       setLoading(true);
       setError(null);
-      const result = await reportService.getSalesSummaryReport({
-        startDate,
-        endDate,
+      const filters = {
         status: statusFilter || undefined,
         vehicleType: vehicleTypeFilter || undefined,
-      });
+      };
+      const result = await reportService.getSalesSummaryReport({ startDate, endDate, ...filters });
       setData(result);
+      setAppliedFilters(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
@@ -67,7 +73,7 @@ export default function SalesSummaryReportPage() {
       const all = await reportService.getSalesSummaryReport({
         startDate,
         endDate,
-        status: statusFilter || undefined,
+        status: appliedFilters.status,
       });
       exportMultiSheet({
         sheets: [
@@ -183,7 +189,7 @@ export default function SalesSummaryReportPage() {
       const blob = await reportService.getSalesSummaryReportPdf({
         startDate,
         endDate,
-        status: statusFilter || undefined,
+        ...appliedFilters,
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -236,15 +242,11 @@ export default function SalesSummaryReportPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ทั้งหมด</option>
-            <option value="QUOTATION">ใบเสนอราคา</option>
-            <option value="DEPOSIT_PENDING">รอวางมัดจำ</option>
-            <option value="DEPOSIT_RECEIVED">รับมัดจำแล้ว</option>
-            <option value="FINANCE_PENDING">รอไฟแนนซ์</option>
-            <option value="FINANCE_APPROVED">ไฟแนนซ์อนุมัติ</option>
-            <option value="PREPARING_DELIVERY">เตรียมส่งมอบ</option>
-            <option value="DELIVERED">ส่งมอบแล้ว</option>
-            <option value="COMPLETED">สำเร็จ</option>
-            <option value="CANCELED">ยกเลิก</option>
+            {Object.entries(SALE_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -297,7 +299,7 @@ export default function SalesSummaryReportPage() {
             reportService.getSalesSummaryReportPdf({
               startDate,
               endDate,
-              status: statusFilter || undefined,
+              ...appliedFilters,
             })
           }
         />

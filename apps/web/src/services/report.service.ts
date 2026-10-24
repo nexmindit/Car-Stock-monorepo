@@ -166,6 +166,7 @@ class ReportService {
     if (params?.endDate) queryParams.append('endDate', params.endDate);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.salespersonId) queryParams.append('salespersonId', params.salespersonId);
+    if (params?.vehicleType) queryParams.append('vehicleType', params.vehicleType);
 
     const url = `/api/reports/sales-summary/pdf${queryParams.toString() ? `?${queryParams}` : ''}`;
     return api.getBlob(url);
