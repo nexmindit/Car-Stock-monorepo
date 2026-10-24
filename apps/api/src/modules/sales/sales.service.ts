@@ -1,6 +1,5 @@
 import { db } from '../../lib/db';
 import { CreateSaleSchema, UpdateSaleSchema, SaleFilterSchema } from '@car-stock/shared/schemas';
-import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
 import { authService } from '../auth/auth.service';
 import { campaignFormulasService } from '../campaigns/campaign-formulas.service';
 import { campaignDay } from '../../lib/campaignDate';
@@ -17,6 +16,9 @@ import {
   recalcRemaining,
   shouldRecalcRemaining,
 } from './sales-remaining';
+import { checkStockSellable, logDemoStockSold } from './demo-sale.service';
+import { findActiveCampaignIdForModel } from './reservation-deposit.service';
+import { generateSaleNumber } from './sale-number';
 
 const toNumber = (val: Decimal | number | null | undefined): number => {
   if (val === null || val === undefined) return 0;
@@ -29,10 +31,6 @@ const toNumberOrNull = (val: Decimal | number | null | undefined): number | null
   if (typeof val === 'number') return val;
   return Number(val);
 };
-
-/** A car can be sold from stock or straight off demo duty (dealers sell demo units). */
-const SELLABLE_STOCK_STATUSES: StockStatus[] = ['AVAILABLE', 'DEMO'];
-const isSellableStockStatus = (status: StockStatus) => SELLABLE_STOCK_STATUSES.includes(status);
 
 /**
  * Domain rule: when a stock unit is linked, its model is the only allowed
@@ -157,46 +155,6 @@ async function createFinanceLines(
 
 export class SalesService {
   /**
-   * Generate sale number
-   */
-  private async generateSaleNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const prefix = NUMBER_PREFIXES.SALE;
-
-    // Atomic read-modify-write inside a serializable transaction prevents the
-    // concurrent-find-then-update race that produces duplicate sale numbers.
-    // We can't use Prisma's compound-key upsert here because the existing year-
-    // only sequences have `month: null`, which isn't addressable via the
-    // `prefix_year_month` unique selector.
-    const nextNumber = await db.$transaction(
-      async (tx) => {
-        const updated = await tx.numberSequence.updateMany({
-          where: { prefix, year: currentYear, month: null },
-          data: { lastNumber: { increment: 1 } },
-        });
-
-        if (updated.count > 0) {
-          const sequence = await tx.numberSequence.findFirst({
-            where: { prefix, year: currentYear, month: null },
-            select: { lastNumber: true },
-          });
-          return sequence!.lastNumber;
-        }
-
-        const created = await tx.numberSequence.create({
-          data: { prefix, year: currentYear, lastNumber: 1 },
-          select: { lastNumber: true },
-        });
-        return created.lastNumber;
-      },
-      { isolationLevel: 'Serializable' }
-    );
-
-    // Format: SL-YYYY-XXXX
-    return `${prefix}-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
-  }
-
-  /**
    * Get all sales with pagination and filters
    */
   async getAllSales(params: any, currentUser: any) {
@@ -260,6 +218,7 @@ export class SalesService {
             select: {
               id: true,
               vin: true,
+              exteriorColor: true,
               vehicleModel: {
                 select: {
                   brand: true,
@@ -269,13 +228,17 @@ export class SalesService {
               },
             },
           },
+          // Booked model + colors — what the car is while no VIN is linked.
           vehicleModel: {
             select: {
+              id: true,
               brand: true,
               model: true,
               variant: true,
             },
           },
+          preferredExtColor: true,
+          preferredIntColor: true,
           createdAt: true,
         },
         skip,
@@ -403,6 +366,8 @@ export class SalesService {
     // Check if stock exists (if provided) — filter soft-deleted.
     // When a unit is linked, stock.vehicleModelId is the only allowed model.
     let createStockNotes: string | null | undefined;
+    let createStockStatus: StockStatus | undefined;
+    let createFromDemo = false;
     if (validated.stockId) {
       const stock = await db.stock.findFirst({
         where: { id: validated.stockId, deletedAt: null },
@@ -412,9 +377,8 @@ export class SalesService {
       if (!stock) {
         throw new NotFoundError('Stock');
       }
-      if (!isSellableStockStatus(stock.status)) {
-        throw new BadRequestError('Stock is not available');
-      }
+      createFromDemo = (await checkStockSellable(stock.status, currentUser.role)).isDemo;
+      createStockStatus = stock.status;
 
       validated.vehicleModelId =
         resolveSaleVehicleModelId({
@@ -475,19 +439,7 @@ export class SalesService {
     // overlapping ACTIVE campaigns.
     // vehicleModelId is already resolved from stock when stockId is set.
     if (!validated.campaignId && validated.vehicleModelId) {
-      const activeCampaign = await db.campaign.findFirst({
-        where: {
-          status: 'ACTIVE',
-          startDate: { lte: saleDay },
-          endDate: { gte: saleDay },
-          vehicleModels: { some: { vehicleModelId: validated.vehicleModelId } },
-        },
-        orderBy: { startDate: 'desc' },
-        select: { id: true },
-      });
-      if (activeCampaign) {
-        validated.campaignId = activeCampaign.id;
-      }
+      validated.campaignId = await findActiveCampaignIdForModel(validated.vehicleModelId, saleDay);
     }
 
     const campaignSubsidySnapshot = await campaignFormulasService.computeSaleSubsidySnapshot({
@@ -497,7 +449,7 @@ export class SalesService {
     });
 
     // Generate sale number
-    const saleNumber = await this.generateSaleNumber();
+    const saleNumber = await generateSaleNumber();
 
     // Calculate remaining amount.
     // Buyer-charged fees (insurance / พรบ / registration) are part of what the
@@ -532,10 +484,10 @@ export class SalesService {
         await createFinanceLines(tx, created.id, customLines);
       }
 
-      // Reserve stock only if still AVAILABLE (atomic vs concurrent sales)
+      // Reserve stock only if still in the status we checked (atomic vs concurrent sales)
       if (validated.stockId) {
         const reserved = await tx.stock.updateMany({
-          where: { id: validated.stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+          where: { id: validated.stockId, status: createStockStatus, deletedAt: null },
           data: {
             status: 'RESERVED',
             ...(createStockNotes !== undefined ? { notes: createStockNotes } : {}),
@@ -543,6 +495,15 @@ export class SalesService {
         });
         if (reserved.count === 0) {
           throw new BadRequestError('Stock is not available');
+        }
+        if (createFromDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: validated.stockId,
+            saleId: created.id,
+            saleNumber: created.saleNumber,
+            via: 'CREATE_SALE',
+          });
         }
       }
 
@@ -876,17 +837,28 @@ export class SalesService {
         if (!newStock) {
           throw new NotFoundError('Stock');
         }
-        if (!isSellableStockStatus(newStock.status)) {
-          throw new BadRequestError('รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)');
-        }
+        const { isDemo } = await checkStockSellable(
+          newStock.status,
+          currentUser.role,
+          'รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)'
+        );
 
-        // Atomic claim: only succeeds if still AVAILABLE
+        // Atomic claim: only succeeds if still in the status checked above
         const claimed = await tx.stock.updateMany({
-          where: { id: incomingStockId!, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+          where: { id: incomingStockId!, status: newStock.status, deletedAt: null },
           data: { status: newStockStatus! },
         });
         if (claimed.count === 0) {
           throw new BadRequestError('รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)');
+        }
+        if (isDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: incomingStockId!,
+            saleId: existingSale.id,
+            saleNumber: existingSale.saleNumber,
+            via: 'UPDATE_SALE',
+          });
         }
 
         if (existingSale.stockId && existingSale.stockId !== incomingStockId) {
@@ -1263,18 +1235,25 @@ export class SalesService {
       if (!newStock) {
         throw new NotFoundError('Stock');
       }
-      if (!isSellableStockStatus(newStock.status)) {
-        throw new BadRequestError('Stock is not available');
-      }
+      const { isDemo } = await checkStockSellable(newStock.status, currentUser.role);
 
       const sharedNotes = pickSharedNotes(existingSale.notes, newStock.notes);
 
       const claimed = await tx.stock.updateMany({
-        where: { id: stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+        where: { id: stockId, status: newStock.status, deletedAt: null },
         data: { status: stockStatus, notes: sharedNotes },
       });
       if (claimed.count === 0) {
         throw new BadRequestError('Stock is not available');
+      }
+      if (isDemo) {
+        await logDemoStockSold(tx, {
+          userId: currentUser.id,
+          stockId,
+          saleId: existingSale.id,
+          saleNumber: existingSale.saleNumber,
+          via: existingSale.stockId ? 'CHANGE_STOCK' : 'ASSIGN_STOCK',
+        });
       }
 
       if (existingSale.stockId && existingSale.stockId !== stockId) {

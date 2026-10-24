@@ -5,6 +5,7 @@ import { MainLayout } from '../../components/layout';
 import { ArrowLeft, Save } from 'lucide-react';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 
 export default function VehicleFormPage() {
   const { id } = useParams();
@@ -12,6 +13,7 @@ export default function VehicleFormPage() {
   const isEdit = !!id;
   const { addToast } = useToast();
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
+  const { activeTypes, allTypes } = useVehicleTypes();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -21,7 +23,7 @@ export default function VehicleFormPage() {
     model: '',
     variant: '',
     year: new Date().getFullYear(),
-    type: 'SEDAN',
+    type: '',
     primaryColor: '',
     secondaryColor: '',
     colorNotes: '',
@@ -83,6 +85,10 @@ export default function VehicleFormPage() {
     // Guard against double-submit: the submit button (outside the <form>) and
     // the form's own onSubmit (Enter key inside fields) both call this handler.
     if (saving) return;
+    if (!formData.type) {
+      addToast('กรุณาเลือกประเภทรถ', 'error');
+      return;
+    }
     setSaving(true);
 
     const data = {
@@ -221,19 +227,20 @@ export default function VehicleFormPage() {
                   required
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-900"
                 >
-                  <option value="SEDAN">Sedan</option>
-                  <option value="SUV">SUV</option>
-                  <option value="HATCHBACK">Hatchback</option>
-                  <option value="PICKUP">Pickup</option>
-                  <option value="MPV">MPV</option>
-                  <option value="COUPE">Coupe</option>
-                  <option value="CONVERTIBLE">Convertible</option>
-                  <option value="WAGON">Wagon</option>
-                  <option value="VAN">Van</option>
-                  <option value="TRUCK">Truck</option>
-                  <option value="CROSSOVER">Crossover</option>
-                  <option value="EV">EV (ไฟฟ้า)</option>
-                  <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
+                  <option value="">-- เลือกประเภท --</option>
+                  {activeTypes.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      {t.nameTh}
+                    </option>
+                  ))}
+                  {/* Keep a model's current type selectable even after it was deactivated */}
+                  {formData.type &&
+                    !activeTypes.some((t) => t.code === formData.type) && (
+                      <option value={formData.type}>
+                        {allTypes.find((t) => t.code === formData.type)?.nameTh ?? formData.type}{' '}
+                        (ปิดใช้งาน)
+                      </option>
+                    )}
                 </select>
               </div>
             </div>

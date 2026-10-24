@@ -193,6 +193,16 @@ class StockService {
     return response.data;
   }
 
+  /** Color suggestions for booking a model without a VIN (catalogue colors first). */
+  async getModelColors(
+    vehicleModelId: string
+  ): Promise<{ exteriorColors: string[]; interiorColors: string[] }> {
+    const response = await api.get<
+      ApiResponse<{ exteriorColors: string[]; interiorColors: string[] }>
+    >(`/api/stock/colors?vehicleModelId=${encodeURIComponent(vehicleModelId)}`);
+    return response.data;
+  }
+
   async getStats(): Promise<StockStats> {
     const response = await api.get<ApiResponse<StockStats>>('/api/stock/stats');
     return response.data;

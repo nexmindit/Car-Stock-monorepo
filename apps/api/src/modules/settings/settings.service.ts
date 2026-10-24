@@ -1,4 +1,6 @@
+import type { DemoSalePolicy } from '@car-stock/shared/constants';
 import { db } from '../../lib/db';
+import { toDemoSalePolicy } from '../sales/demo-sale.helpers';
 import type { CompanySettingsDTO } from './types';
 
 export class SettingsService {
@@ -21,6 +23,14 @@ export class SettingsService {
     // We assume there's only one settings record. We grab the first one.
     const settings = await db.companySettings.findFirst();
     return settings;
+  }
+
+  /** Who may sell DEMO stock (defaults when settings were never saved). */
+  async getDemoSalePolicy(): Promise<DemoSalePolicy> {
+    const row = await db.companySettings.findFirst({
+      select: { allowDemoSale: true, demoSaleRoles: true },
+    });
+    return toDemoSalePolicy(row);
   }
 
   /**

@@ -9,6 +9,7 @@ import { authService } from '../auth/auth.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../../lib/errors';
 import { buildStockAttributeWhere } from './stock-filter.helpers';
+import { uniqueColors } from '../sales/reservation-deposit.helpers';
 
 /** SOLD rows may only change `notes`; any other PATCH field stays rejected. */
 export function isNotesOnlyStockUpdate(data: Record<string, unknown>): boolean {
@@ -729,7 +730,8 @@ export class StockService {
 
   /**
    * Stock units shown when picking a car for a sale.
-   * Includes DEMO: demo units are sellable too (the picker badges them).
+   * Includes DEMO: demo units are sellable when Settings → การขายรถ Demo allows the role
+   * (the picker badges them and disables them otherwise; the write path re-checks).
    */
   async getAvailableStock() {
     const stocks = await db.stock.findMany({
@@ -798,6 +800,42 @@ export class StockService {
       models,
       exteriorColors: exterior.map((s) => s.exteriorColor).filter(Boolean),
       interiorColors: interior.map((s) => s.interiorColor as string).filter(Boolean),
+    };
+  }
+
+  /**
+   * Color suggestions when booking a model without a VIN: the model's
+   * catalogue colors first, then every color its stock units have had.
+   */
+  async getModelColors(vehicleModelId: string, currentUser: { role: string }) {
+    if (!authService.hasPermission(currentUser.role, 'STOCK_VIEW')) {
+      throw new ForbiddenError();
+    }
+    const [model, exterior, interior] = await Promise.all([
+      db.vehicleModel.findUnique({
+        where: { id: vehicleModelId },
+        select: { primaryColor: true, secondaryColor: true },
+      }),
+      db.stock.findMany({
+        where: { vehicleModelId, deletedAt: null },
+        select: { exteriorColor: true },
+        distinct: ['exteriorColor'],
+        orderBy: { exteriorColor: 'asc' },
+      }),
+      db.stock.findMany({
+        where: { vehicleModelId, deletedAt: null, interiorColor: { not: null } },
+        select: { interiorColor: true },
+        distinct: ['interiorColor'],
+        orderBy: { interiorColor: 'asc' },
+      }),
+    ]);
+    if (!model) throw new NotFoundError('Vehicle model');
+    return {
+      exteriorColors: uniqueColors(
+        [model.primaryColor, model.secondaryColor],
+        exterior.map((s) => s.exteriorColor)
+      ),
+      interiorColors: uniqueColors(interior.map((s) => s.interiorColor)),
     };
   }
 

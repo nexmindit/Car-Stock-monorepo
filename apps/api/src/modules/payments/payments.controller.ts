@@ -148,6 +148,56 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
       },
     }
   )
+  // Book a car by model + color and take its deposit in one step
+  .post(
+    '/reservation-deposit',
+    async ({ body, set, requester }) => {
+      const payment = await paymentsService.createReservationDeposit(body, requester);
+      set.status = 201;
+      return {
+        success: true,
+        data: payment,
+        message: 'Reservation and deposit recorded successfully',
+      };
+    },
+    {
+      // Creates a sale and a payment: both permissions are required.
+      beforeHandle: [
+        authMiddleware,
+        requirePermission('PAYMENT_CREATE'),
+        requirePermission('SALE_CREATE'),
+      ],
+      body: t.Object({
+        customerId: t.String({ minLength: 1 }),
+        vehicleModelId: t.String({ minLength: 1 }),
+        preferredExtColor: t.String({ minLength: 1 }),
+        preferredIntColor: t.Optional(t.String()),
+        totalAmount: t.Optional(t.Number({ minimum: 0.01 })),
+        depositAmount: t.Number({ minimum: 0.01 }),
+        paymentDate: t.Optional(t.Union([t.Date(), t.String()])),
+        paymentMethod: t.Union([
+          t.Literal('CASH'),
+          t.Literal('BANK_TRANSFER'),
+          t.Literal('CHEQUE'),
+          t.Literal('CREDIT_CARD'),
+        ]),
+        referenceNumber: t.Optional(t.String()),
+        receivingBank: t.Optional(t.String()),
+        receivingBankName: t.Optional(t.String()),
+        receivingAccountNumber: t.Optional(t.String()),
+        receivingBranch: t.Optional(t.String()),
+        description: t.Optional(t.String()),
+        notes: t.Optional(t.String()),
+        createdAt: t.Optional(t.Union([t.Date(), t.String()])),
+      }),
+      detail: {
+        tags: ['Payments'],
+        summary: 'Book a car (model + color, no VIN) with a deposit receipt',
+        description:
+          'Creates a RESERVATION_SALE with no stock linked plus its DEPOSIT payment in one transaction. totalAmount defaults to the model price. Requires PAYMENT_CREATE and SALE_CREATE.',
+      },
+    }
+  )
   // Update payment
   .patch(
     '/:id',

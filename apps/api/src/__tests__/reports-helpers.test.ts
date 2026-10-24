@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import { splitVat } from '../modules/reports/reports.service';
-import { computeSaleMoney } from '../modules/reports/sales-summary.helpers';
+import {
+  SALE_STATUS_FILTER_VALUES,
+  computeSaleMoney,
+  describeSalesSummaryFilters,
+} from '../modules/reports/sales-summary.helpers';
 
 describe('splitVat', () => {
   it('returns zeros for gross = 0', () => {
@@ -90,5 +94,28 @@ describe('computeSaleMoney', () => {
     expect(r.netCarDiscount).toBe(-15_000); // 10,000 − 25,000
     expect(r.netProfit).toBe(75_000); // 50,000 + 25,000
     expect(r.campaignSubsidy).toBe(25_000);
+  });
+});
+
+describe('describeSalesSummaryFilters', () => {
+  it('is empty when no filter is applied', () => {
+    expect(describeSalesSummaryFilters({})).toBe('');
+  });
+
+  it('labels every SaleStatus in Thai', () => {
+    for (const status of SALE_STATUS_FILTER_VALUES) {
+      const text = describeSalesSummaryFilters({ status });
+      expect(text.startsWith('สถานะ: ')).toBe(true);
+      expect(text).not.toContain(status);
+    }
+  });
+
+  it('joins status and vehicle type name', () => {
+    expect(describeSalesSummaryFilters({ status: 'RESERVED', vehicleTypeName: 'เก๋ง' })).toBe(
+      'สถานะ: จองแล้ว · ประเภทรถ: เก๋ง'
+    );
+    expect(describeSalesSummaryFilters({ vehicleTypeName: 'มอเตอร์ไซค์' })).toBe(
+      'ประเภทรถ: มอเตอร์ไซค์'
+    );
   });
 });

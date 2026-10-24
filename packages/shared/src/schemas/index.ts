@@ -25,21 +25,25 @@ export const CustomerTypeSchema = z.enum(['INDIVIDUAL', 'COMPANY']);
 
 export const SalesTypeSchema = z.enum(['NORMAL_SALES', 'FLEET_SALES']);
 
-export const VehicleTypeSchema = z.enum([
-  'SEDAN',
-  'SUV',
-  'HATCHBACK',
-  'PICKUP',
-  'MPV',
-  'COUPE',
-  'CONVERTIBLE',
-  'WAGON',
-  'VAN',
-  'TRUCK',
-  'CROSSOVER',
-  'EV',
-  'MOTORCYCLE',
-]);
+// Vehicle types live in the vehicle_types table (admin-managed), so any code is accepted here;
+// the API checks it exists and is active.
+export const VehicleTypeSchema = z.string().min(1);
+
+// Code format for a new vehicle type: uppercase letters, digits and underscores.
+export const VehicleTypeCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9_]{1,30}$/, 'รหัสต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ ไม่เกิน 30 ตัว');
+
+export const CreateVehicleTypeSchema = z.object({
+  code: VehicleTypeCodeSchema,
+  nameTh: z.string().trim().min(1, 'กรุณาระบุชื่อประเภทรถ').max(100),
+  sortOrder: z.number().int().optional().default(0),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const UpdateVehicleTypeSchema = CreateVehicleTypeSchema.omit({ code: true }).partial();
 
 export const StockStatusSchema = z.enum(['AVAILABLE', 'RESERVED', 'PREPARING', 'SOLD', 'DEMO']);
 
@@ -540,6 +544,38 @@ export const CreatePaymentSchema = z.object({
   receivingBranch: z.string().optional(),
 });
 
+/**
+ * จองรถจากหน้าชำระเงิน: one step creates a RESERVATION_SALE (model + color, no
+ * VIN yet) and its DEPOSIT receipt. totalAmount defaults to the model price.
+ */
+export const CreateReservationDepositSchema = z
+  .object({
+    customerId: z.string().min(1, 'Customer is required'),
+    vehicleModelId: z.string().min(1, 'Vehicle model is required'),
+    preferredExtColor: z.string().trim().min(1, 'Exterior color is required'),
+    preferredIntColor: z.string().trim().optional(),
+    totalAmount: z.number().positive('Total amount must be positive').optional(),
+    depositAmount: z.number().positive('Deposit must be positive'),
+
+    paymentDate: z.coerce.date().default(() => new Date()),
+    paymentMethod: PaymentMethodSchema,
+    referenceNumber: z.string().optional(),
+    receivingBank: z.string().optional(),
+    receivingBankName: z.string().optional(),
+    receivingAccountNumber: z.string().optional(),
+    receivingBranch: z.string().optional(),
+    // Printed as an extra item line on the receipt (same as sale-mode หมายเหตุ).
+    description: z.string().optional(),
+    notes: z.string().optional(),
+    // Optional business date of the booking (backdating, like CreateSaleSchema).
+    // Defaults to paymentDate so a back-keyed deposit keeps its campaign/report day.
+    createdAt: z.coerce.date().optional(),
+  })
+  .refine((d) => d.totalAmount === undefined || d.depositAmount <= d.totalAmount, {
+    message: 'Deposit cannot exceed the car price',
+    path: ['depositAmount'],
+  });
+
 export const UpdatePaymentSchema = z.object({
   description: z.string().optional(),
   paymentDate: z.coerce.date().optional(),
@@ -703,6 +739,7 @@ export const MonthlyPurchasesQuerySchema = z.object({
 export const MonthlyPurchasesItemSchema = z.object({
   no: z.number(),
   vehicleModelName: z.string(),
+  vehicleType: VehicleTypeSchema,
   exteriorColor: z.string(),
   vin: z.string(),
   engineNumber: z.string(),
@@ -800,6 +837,20 @@ export const CampaignClaimReportResponseSchema = z.object({
 export const VehicleTypeFilterSchema = z.object({
   vehicleType: VehicleTypeSchema.optional(),
 });
+
+// ============================================================================
+// Company settings: selling DEMO cars (both optional so older clients can still save)
+// ============================================================================
+
+export const DemoSaleSettingsSchema = z.object({
+  allowDemoSale: z.boolean().optional(),
+  demoSaleRoles: z
+    .array(RoleSchema)
+    .transform((roles) => [...new Set(roles)])
+    .optional(),
+});
+
+export type DemoSaleSettingsInput = z.infer<typeof DemoSaleSettingsSchema>;
 
 // ============================================================================
 // Vehicle card print layout (positions in mm from the paper's top-left)

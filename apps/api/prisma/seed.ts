@@ -1,5 +1,6 @@
 import { PrismaClient, type Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { DEFAULT_VEHICLE_TYPES } from '../src/modules/vehicle-types/vehicle-types.helpers';
 
 const db = new PrismaClient();
 
@@ -139,6 +140,14 @@ async function seed() {
   console.log('✅ Bank accounts ready');
 
   // -------------------------------------------------------------------------
+  // Vehicle types (the migration seeds these too; this covers `db push` setups)
+  // -------------------------------------------------------------------------
+  for (const vt of DEFAULT_VEHICLE_TYPES) {
+    await db.vehicleType.upsert({ where: { code: vt.code }, update: {}, create: vt });
+  }
+  console.log(`✅ Vehicle types ready: ${DEFAULT_VEHICLE_TYPES.length}`);
+
+  // -------------------------------------------------------------------------
   // Vehicle models (25+)
   // -------------------------------------------------------------------------
   const vehicleModelDefs: Array<{
@@ -146,7 +155,7 @@ async function seed() {
     model: string;
     variant: string;
     year: number;
-    type: 'EV' | 'SUV' | 'SEDAN' | 'PICKUP' | 'MPV' | 'HATCHBACK' | 'CROSSOVER';
+    type: string; // vehicle_types.code
     primaryColor: string;
     secondaryColor: string;
     mainOptions: string;

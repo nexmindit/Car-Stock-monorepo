@@ -4,6 +4,7 @@ import { authService } from '../auth/auth.service';
 import { formatThaiDate } from '../pdf/helpers';
 import { pdfService } from '../pdf/pdf.service';
 import { reportsService } from './reports.service';
+import { SALE_STATUS_FILTER_VALUES, describeSalesSummaryFilters } from './sales-summary.helpers';
 import '../../types/context.d';
 import { db } from '../../lib/db';
 
@@ -28,6 +29,17 @@ async function getCompanyHeader(): Promise<any> {
     phone: 'โทร. 044-272-888 โทรสาร. 044-271-224',
   };
 }
+
+/** `?status=` for the sales summary JSON and PDF endpoints — the real SaleStatus values only. */
+const saleStatusFilterQuery = t.Optional(
+  t.Union([
+    t.Literal(SALE_STATUS_FILTER_VALUES[0]),
+    t.Literal(SALE_STATUS_FILTER_VALUES[1]),
+    t.Literal(SALE_STATUS_FILTER_VALUES[2]),
+    t.Literal(SALE_STATUS_FILTER_VALUES[3]),
+    t.Literal(SALE_STATUS_FILTER_VALUES[4]),
+  ])
+);
 
 export const reportRoutes = new Elysia({ prefix: '/reports' })
   // ============================================
@@ -358,7 +370,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       const result = await reportsService.getSalesSummaryReport({
         startDate,
         endDate,
-        status: query.status as any,
+        status: query.status,
         salespersonId: query.salespersonId,
         vehicleType: query.vehicleType as any,
       });
@@ -374,15 +386,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       query: t.Object({
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
-        status: t.Optional(
-          t.Union([
-            t.Literal('RESERVED'),
-            t.Literal('PREPARING'),
-            t.Literal('DELIVERED'),
-            t.Literal('COMPLETED'),
-            t.Literal('CANCELLED'),
-          ])
-        ),
+        status: saleStatusFilterQuery,
         salespersonId: t.Optional(t.String()),
         vehicleType: t.Optional(t.String()),
       }),
@@ -407,8 +411,9 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       const result = await reportsService.getSalesSummaryReport({
         startDate,
         endDate,
-        status: query.status as any,
+        status: query.status,
         salespersonId: query.salespersonId,
+        vehicleType: query.vehicleType,
       });
 
       const dateRange =
@@ -416,12 +421,24 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
           ? `${formatThaiDate(startDate, 'short')} - ${formatThaiDate(endDate, 'short')}`
           : `ทั้งหมด`;
 
+      const vehicleType = query.vehicleType
+        ? await db.vehicleType.findUnique({
+            where: { code: query.vehicleType },
+            select: { nameTh: true },
+          })
+        : null;
+      const filterLabel = describeSalesSummaryFilters({
+        status: query.status,
+        vehicleTypeName: query.vehicleType ? (vehicleType?.nameTh ?? query.vehicleType) : undefined,
+      });
+
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
 
       const pdfBuffer = await pdfService.generateSalesSummaryReport({
         header,
         dateRange,
+        filterLabel,
         sales: result.sales,
         summary: result.summary,
         bySalesperson: result.bySalesperson,
@@ -437,8 +454,9 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       query: t.Object({
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
-        status: t.Optional(t.String()),
+        status: saleStatusFilterQuery,
         salespersonId: t.Optional(t.String()),
+        vehicleType: t.Optional(t.String()),
       }),
     }
   )

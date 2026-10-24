@@ -224,5 +224,13 @@ export function isAppError(error: unknown): error is AppError {
  * Type guard to check if error is Prisma error
  */
 export function isPrismaError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
-  return error instanceof Error && 'code' in error && typeof (error as {code: string}).code === 'string';
+  // Prisma known-request codes look like P2002. Other errors also carry a string
+  // `code` (Elysia's ValidationError has code 'VALIDATION') and must not be
+  // reported as "Database error occurred".
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string' &&
+    /^P\d{4}$/.test((error as { code: string }).code)
+  );
 }

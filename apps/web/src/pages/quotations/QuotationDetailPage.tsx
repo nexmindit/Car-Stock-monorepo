@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useMutationHandler, useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 
 const STATUS_LABELS: Record<QuotationStatus, string> = {
   DRAFT: 'แบบร่าง',
@@ -53,6 +54,7 @@ const STATUS_ICONS: Record<QuotationStatus, React.ReactNode> = {
 };
 
 export default function QuotationDetailPage() {
+  const { typeLabel } = useVehicleTypes();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -414,7 +416,7 @@ export default function QuotationDetailPage() {
                 {quotation.vehicleModel.type && (
                   <div>
                     <dt className="text-sm text-gray-600">ประเภท</dt>
-                    <dd className="text-sm font-medium text-gray-900">{quotation.vehicleModel.type}</dd>
+                    <dd className="text-sm font-medium text-gray-900">{typeLabel(quotation.vehicleModel.type)}</dd>
                   </div>
                 )}
                 {quotation.preferredExtColor && (

@@ -1,30 +1,11 @@
-import { VEHICLE_TYPE_LABELS } from '@car-stock/shared/constants';
-import type {
-  MonthlyPurchasesItem,
-  MonthlyPurchasesResponse,
-  VehicleType,
-} from '@car-stock/shared/types';
+import type { MonthlyPurchasesItem, MonthlyPurchasesResponse } from '@car-stock/shared/types';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MainLayout } from '../../components/layout';
-import { exportMultiSheet } from '../../components/reports/exportUtils';
+import { exportMultiSheet, sheetsByVehicleType } from '../../components/reports/exportUtils';
 import { useToast } from '../../components/toast';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { reportService } from '../../services/report.service';
-
-const TYPE_OPTIONS: Array<VehicleType | ''> = [
-  '',
-  'SEDAN',
-  'PICKUP',
-  'SUV',
-  'HATCHBACK',
-  'MPV',
-  'VAN',
-  'TRUCK',
-  'COUPE',
-  'CONVERTIBLE',
-  'WAGON',
-  'MOTORCYCLE',
-];
 
 const MONTH_NAMES_TH = [
   'มกราคม',
@@ -46,7 +27,8 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [vehicleType, setVehicleType] = useState<VehicleType | ''>('');
+  const [vehicleType, setVehicleType] = useState('');
+  const { activeTypes, allTypes, typeLabel } = useVehicleTypes();
 
   const { data, isLoading, error } = useQuery<MonthlyPurchasesResponse>({
     queryKey: ['monthly-purchases', year, month, vehicleType],
@@ -80,15 +62,20 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
     });
 
     try {
-      const [sedan, pickup] = await Promise.all([
-        reportService.getMonthlyPurchasesReport({ year, month, vehicleType: 'SEDAN' }),
-        reportService.getMonthlyPurchasesReport({ year, month, vehicleType: 'PICKUP' }),
-      ]);
+      // Per-type sheets come from the whole month, not the on-screen type filter.
+      const all = vehicleType
+        ? await reportService.getMonthlyPurchasesReport({ year, month })
+        : data;
       exportMultiSheet({
         sheets: [
           { name: 'รายการซื้อรถประจำเดือน', data: data.items.map(toRow) },
-          { name: 'รายการซื้อแยกเก๋ง', data: sedan.items.map(toRow) },
-          { name: 'รายการซื้อแยกกะบะ', data: pickup.items.map(toRow) },
+          ...sheetsByVehicleType(all.items, {
+            getType: (i) => i.vehicleType,
+            typeLabel,
+            typeOrder: allTypes.map((t) => t.code),
+            prefix: 'รายการซื้อแยก',
+            toRow,
+          }),
         ],
         filename: `monthly-purchases_${year}-${String(month).padStart(2, '0')}`,
       });
@@ -173,12 +160,13 @@ export function MonthlyPurchasesReportPage(): React.ReactElement {
               <label className="text-sm font-medium">ประเภทรถ:</label>
               <select
                 value={vehicleType}
-                onChange={(e) => setVehicleType(e.target.value as VehicleType | '')}
+                onChange={(e) => setVehicleType(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
               >
-                {TYPE_OPTIONS.map((t) => (
-                  <option key={t || 'all'} value={t}>
-                    {t ? (VEHICLE_TYPE_LABELS as Record<string, string>)[t] || t : 'ทั้งหมด'}
+                <option value="">ทั้งหมด</option>
+                {activeTypes.map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.nameTh}
                   </option>
                 ))}
               </select>

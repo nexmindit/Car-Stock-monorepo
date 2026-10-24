@@ -43,6 +43,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   'USERNAME_ALREADY_EXISTS': 'ชื่อผู้ใช้งานนี้มีอยู่แล้วในระบบ',
   'EMAIL_ALREADY_EXISTS': 'อีเมลนี้มีอยู่แล้วในระบบ',
   'VEHICLE_MODEL_ALREADY_EXISTS': 'รุ่นรถนี้มีอยู่แล้วในระบบ',
+  'VEHICLE_TYPE_CODE_ALREADY_EXISTS': 'รหัสประเภทรถนี้มีอยู่แล้วในระบบ',
   'MOTOR_NUMBER_ALREADY_EXISTS': 'เลขมอเตอร์นี้มีอยู่แล้วในระบบ',
   'STOCK_ALREADY_IN_SALE': 'รถคันนี้มีรายการขายอยู่แล้ว',
   'CONTRACT_NUMBER_ALREADY_EXISTS': 'เลขสัญญานี้มีอยู่แล้วในระบบ',

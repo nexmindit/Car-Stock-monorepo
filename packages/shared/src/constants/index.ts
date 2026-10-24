@@ -162,22 +162,6 @@ export const REFUND_POLICY_LABELS = {
   NO_REFUND: 'ไม่คืนเงิน',
 } as const;
 
-export const VEHICLE_TYPE_LABELS = {
-  SUV: 'SUV',
-  SEDAN: 'Sedan',
-  PICKUP: 'Pickup',
-  HATCHBACK: 'Hatchback',
-  MPV: 'MPV',
-  COUPE: 'Coupe',
-  CONVERTIBLE: 'Convertible',
-  WAGON: 'Wagon',
-  VAN: 'Van',
-  TRUCK: 'Truck',
-  CROSSOVER: 'Crossover',
-  EV: 'Electric Vehicle',
-  MOTORCYCLE: 'มอเตอร์ไซค์',
-} as const;
-
 export const QUOTATION_STATUS_LABELS = {
   DRAFT: 'ร่าง',
   SENT: 'ส่งแล้ว',
@@ -354,6 +338,7 @@ export const PERMISSIONS = {
   // Vehicle Model Management
   VEHICLE_VIEW: ['ADMIN', 'SALES_MANAGER', 'STOCK_STAFF', 'ACCOUNTANT', 'SALES_STAFF'],
   VEHICLE_EDIT: ['ADMIN', 'STOCK_STAFF'],
+  VEHICLE_TYPE_MANAGE: ['ADMIN', 'STOCK_STAFF'],
 
   // Stock Management
   STOCK_CREATE: ['ADMIN', 'STOCK_STAFF'],
@@ -416,6 +401,45 @@ export const PERMISSIONS = {
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
+
+// ============================================
+// Selling DEMO cars (ตั้งค่า → การขายรถ Demo)
+// ============================================
+
+export type RoleValue = keyof typeof ROLE_LABELS;
+
+/** Company-wide switch + which roles may sell a stock unit that is on DEMO duty. */
+export interface DemoSalePolicy {
+  allowDemoSale: boolean;
+  demoSaleRoles: readonly RoleValue[];
+}
+
+/** Defaults keep the pre-setting behaviour: everyone who can create a sale can sell demo cars. */
+export const DEFAULT_DEMO_SALE_ROLES: readonly RoleValue[] = PERMISSIONS.SALE_CREATE;
+
+export const DEFAULT_DEMO_SALE_POLICY: DemoSalePolicy = {
+  allowDemoSale: true,
+  demoSaleRoles: DEFAULT_DEMO_SALE_ROLES,
+};
+
+export const DEMO_SALE_DISABLED_MESSAGE = 'ระบบปิดการขายรถ Demo';
+export const DEMO_SALE_ROLE_DENIED_MESSAGE = 'ไม่มีสิทธิ์ขายรถ Demo';
+
+/** Why `role` may not sell a DEMO unit under `policy`, or null when it may. */
+export function demoSaleBlockReason(
+  policy: DemoSalePolicy,
+  role: string | null | undefined
+): string | null {
+  if (!policy.allowDemoSale) return DEMO_SALE_DISABLED_MESSAGE;
+  if (!role || !(policy.demoSaleRoles as readonly string[]).includes(role)) {
+    return DEMO_SALE_ROLE_DENIED_MESSAGE;
+  }
+  return null;
+}
+
+export function canSellDemoStock(policy: DemoSalePolicy, role: string | null | undefined): boolean {
+  return demoSaleBlockReason(policy, role) === null;
+}
 
 // ============================================
 // Vehicle card (การ์ดรถยนต์) print layout

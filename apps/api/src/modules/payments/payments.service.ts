@@ -1,8 +1,22 @@
 import { db } from '../../lib/db';
-import { CreatePaymentSchema, UpdatePaymentSchema, VoidPaymentSchema, PaymentFilterSchema } from '@car-stock/shared/schemas';
-import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
+import {
+  CreatePaymentSchema,
+  CreateReservationDepositSchema,
+  UpdatePaymentSchema,
+  VoidPaymentSchema,
+  PaymentFilterSchema,
+} from '@car-stock/shared/schemas';
+import { campaignDay } from '../../lib/campaignDate';
+import { campaignFormulasService } from '../campaigns/campaign-formulas.service';
+import { reservationAmounts } from '../sales/reservation-deposit.helpers';
+import {
+  createReservationWithDeposit,
+  findActiveCampaignIdForModel,
+} from '../sales/reservation-deposit.service';
+import { generateSaleNumber } from '../sales/sale-number';
 import { authService } from '../auth/auth.service';
 import { AppError, NotFoundError, ForbiddenError, BadRequestError } from '../../lib/errors';
+import { generateReceiptNumber, resolveIssuedBy } from './receipt-number';
 
 // Payment types that affect car price (should update paidAmount and remainingAmount)
 const CAR_PAYMENT_TYPES = ['DEPOSIT', 'DOWN_PAYMENT', 'FINANCE_PAYMENT'] as const;
@@ -20,40 +34,6 @@ const buyerFees = (sale: {
   Number(sale.registrationFee ?? 0);
 
 export class PaymentsService {
-  /**
-   * Generate receipt number
-   */
-  private async generateReceiptNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const prefix = NUMBER_PREFIXES.RECEIPT;
-
-    // Atomic upsert + increment — prevents race condition on concurrent payments
-    const sequence = await db.numberSequence.upsert({
-      where: {
-        prefix_year_month: {
-          prefix,
-          year: currentYear,
-          month: currentMonth,
-        },
-      },
-      create: {
-        prefix,
-        year: currentYear,
-        month: currentMonth,
-        lastNumber: 1,
-      },
-      update: {
-        lastNumber: { increment: 1 },
-      },
-    });
-
-    // Format: RCPT-YYMM-XXXX
-    const yearStr = currentYear.toString().slice(-2);
-    const monthStr = currentMonth.toString().padStart(2, '0');
-    return `${prefix}-${yearStr}${monthStr}-${sequence.lastNumber.toString().padStart(4, '0')}`;
-  }
-
   /**
    * Get all payments with pagination and filters
    */
@@ -165,6 +145,18 @@ export class PaymentsService {
                 name: true,
               },
             },
+            // Car on the sale: the linked unit, or the booked model + colors
+            // while no VIN is assigned yet.
+            stock: {
+              select: {
+                id: true,
+                vin: true,
+                exteriorColor: true,
+                interiorColor: true,
+                vehicleModel: { select: { id: true, brand: true, model: true, variant: true } },
+              },
+            },
+            vehicleModel: { select: { id: true, brand: true, model: true, variant: true } },
           },
         },
         createdBy: {
@@ -242,14 +234,9 @@ export class PaymentsService {
     }
 
     // Generate receipt number
-    const receiptNumber = await this.generateReceiptNumber();
+    const receiptNumber = await generateReceiptNumber();
 
-    // Look up user's full name from DB
-    const user = await db.user.findUnique({
-      where: { id: currentUser.id },
-      select: { firstName: true, lastName: true, username: true },
-    });
-    const issuedByName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.username || currentUser.username;
+    const issuedByName = await resolveIssuedBy(currentUser.id, currentUser.username);
 
     // Create payment + update sale balance in a single transaction.
     // Serializable isolation ensures concurrent payments cannot both observe
@@ -353,6 +340,126 @@ export class PaymentsService {
     );
 
     return payment;
+  }
+
+  /**
+   * จองรถจากหน้าชำระเงิน: book a car by model + color (no VIN yet) and issue
+   * the deposit receipt in one step. Creates a RESERVATION_SALE (RESERVED,
+   * stockId null) and its DEPOSIT payment in one transaction; the VIN is
+   * linked later from the sale page (assign-stock).
+   */
+  async createReservationDeposit(data: unknown, currentUser: any) {
+    // Creates a sale and a payment — needs both rights.
+    if (
+      !authService.hasPermission(currentUser.role, 'PAYMENT_CREATE') ||
+      !authService.hasPermission(currentUser.role, 'SALE_CREATE')
+    ) {
+      throw new ForbiddenError();
+    }
+
+    const validated = CreateReservationDepositSchema.parse(data);
+
+    const [customer, vehicleModel] = await Promise.all([
+      db.customer.findUnique({ where: { id: validated.customerId }, select: { id: true } }),
+      db.vehicleModel.findUnique({
+        where: { id: validated.vehicleModelId },
+        select: { id: true, price: true },
+      }),
+    ]);
+    if (!customer) throw new NotFoundError('Customer');
+    if (!vehicleModel) throw new NotFoundError('Vehicle model');
+
+    const amounts = reservationAmounts({
+      totalAmount: validated.totalAmount,
+      depositAmount: validated.depositAmount,
+      modelPrice: Number(vehicleModel.price),
+    });
+
+    // A deposit keyed in after the fact belongs to the day it was received:
+    // that day drives the campaign tag and the daily stock snapshot.
+    const bookedAt = validated.createdAt ?? validated.paymentDate;
+
+    // Tag the active campaign the same way createSale does (sales-page bookings).
+    const saleDay = campaignDay(bookedAt);
+    const campaignId = await findActiveCampaignIdForModel(vehicleModel.id, saleDay);
+    const campaignSubsidySnapshot = await campaignFormulasService.computeSaleSubsidySnapshot({
+      campaignId,
+      vehicleModelId: vehicleModel.id,
+      stockId: null,
+    });
+
+    const issuedByName = await resolveIssuedBy(currentUser.id, currentUser.username);
+
+    const saleNumber = await generateSaleNumber();
+    const receiptNumber = await generateReceiptNumber();
+
+    const { payment } = await db.$transaction(async (tx) => {
+      const result = await createReservationWithDeposit(tx, {
+        userId: currentUser.id,
+        sale: {
+          saleNumber,
+          type: 'RESERVATION_SALE',
+          status: 'RESERVED',
+          customerId: validated.customerId,
+          stockId: null,
+          vehicleModelId: vehicleModel.id,
+          preferredExtColor: validated.preferredExtColor,
+          preferredIntColor: validated.preferredIntColor || null,
+          totalAmount: amounts.totalAmount,
+          depositAmount: amounts.depositAmount,
+          remainingAmount: amounts.remainingAmount,
+          reservedDate: bookedAt,
+          campaignId: campaignId ?? null,
+          campaignSubsidySnapshot,
+          paymentMode: 'CASH',
+          createdAt: bookedAt,
+        },
+        deposit: {
+          receiptNumber,
+          paymentDate: validated.paymentDate,
+          paymentMethod: validated.paymentMethod,
+          referenceNumber: validated.referenceNumber,
+          notes: validated.notes,
+          description: validated.description,
+          receivingBank: validated.receivingBank,
+          receivingBankName: validated.receivingBankName,
+          receivingAccountNumber: validated.receivingAccountNumber,
+          receivingBranch: validated.receivingBranch,
+          issuedBy: issuedByName,
+          logDetails: { via: 'PAYMENT_PAGE' },
+        },
+      });
+      const { sale } = result;
+
+      await tx.saleHistory.create({
+        data: {
+          saleId: sale.id,
+          action: 'CREATE_SALE',
+          fromStatus: null,
+          toStatus: sale.status,
+          notes: `จองรถพร้อมรับเงินจอง (ใบเสร็จ ${receiptNumber})`,
+          createdById: currentUser.id,
+        },
+      });
+      await tx.activityLog.create({
+        data: {
+          userId: currentUser.id,
+          action: 'CREATE_SALE',
+          entity: 'SALE',
+          entityId: sale.id,
+          details: {
+            saleNumber: sale.saleNumber,
+            customerId: sale.customerId,
+            totalAmount: sale.totalAmount,
+            via: 'PAYMENT_PAGE',
+          },
+        },
+      });
+      return result;
+    });
+
+    if (!payment) throw new AppError('Deposit payment was not created', 500);
+    return this.getPaymentById(payment.id, currentUser);
   }
 
   /**

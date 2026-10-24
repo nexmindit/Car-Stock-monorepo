@@ -2,48 +2,14 @@ import { db } from '../../lib/db';
 import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
 import { authService } from '../auth/auth.service';
 import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '../../lib/errors';
+import { checkStockSellable, logDemoStockSold } from '../sales/demo-sale.service';
+import { reservationAmounts } from '../sales/reservation-deposit.helpers';
+import { createReservationWithDeposit } from '../sales/reservation-deposit.service';
+import { generateSaleNumber } from '../sales/sale-number';
+import { generateReceiptNumber, resolveIssuedBy } from '../payments/receipt-number';
+import type { StockStatus } from '@prisma/client';
 
 export class QuotationsService {
-  /**
-   * Generate receipt number for payments
-   */
-  private async generateReceiptNumber(): Promise<string> {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
-    const prefix = NUMBER_PREFIXES.RECEIPT;
-
-    // Get or create number sequence
-    let sequence = await db.numberSequence.findFirst({
-      where: {
-        prefix: prefix,
-        year: currentYear,
-        month: currentMonth,
-      },
-    });
-
-    if (!sequence) {
-      sequence = await db.numberSequence.create({
-        data: {
-          prefix: prefix,
-          year: currentYear,
-          month: currentMonth,
-          lastNumber: 0,
-        },
-      });
-    }
-
-    // Increment and get next number
-    const nextNumber = sequence.lastNumber + 1;
-    await db.numberSequence.update({
-      where: { id: sequence.id },
-      data: { lastNumber: nextNumber },
-    });
-
-    // Format: RCPT-YYMM-XXXX
-    const yearStr = currentYear.toString().slice(-2);
-    const monthStr = currentMonth.toString().padStart(2, '0');
-    return `${prefix}-${yearStr}${monthStr}-${nextNumber.toString().padStart(4, '0')}`;
-  }
   /**
    * Generate quotation number
    */
@@ -559,59 +525,46 @@ export class QuotationsService {
       throw new BadRequestError('Can only convert accepted quotations');
     }
 
-    // Generate sale number atomically. Mirrors the fixed generator in
-    // `sales.service.ts#generateSaleNumber` — serializable transaction with an
-    // updateMany+create fallback so concurrent conversions cannot produce
-    // duplicate sale numbers. Pre-generated outside the main transaction so
-    // the sequence increment survives a rollback of the sale conversion
-    // (matches standard SEQUENCE semantics).
-    const currentYear = new Date().getFullYear();
-    const salePrefix = NUMBER_PREFIXES.SALE;
+    // A unit picked at conversion must be sellable (AVAILABLE, or DEMO when the
+    // setting allows this role); it is claimed atomically inside the transaction.
+    let pickedStockStatus: StockStatus | undefined;
+    let pickedFromDemo = false;
+    if (data.stockId) {
+      const stock = await db.stock.findFirst({
+        where: { id: data.stockId, deletedAt: null },
+        select: { status: true },
+      });
+      if (!stock) {
+        throw new NotFoundError('Stock');
+      }
+      pickedFromDemo = (await checkStockSellable(stock.status, currentUser.role)).isDemo;
+      pickedStockStatus = stock.status;
+    }
 
-    const nextSaleNumber = await db.$transaction(
-      async (tx) => {
-        const updated = await tx.numberSequence.updateMany({
-          where: { prefix: salePrefix, year: currentYear, month: null },
-          data: { lastNumber: { increment: 1 } },
-        });
-        if (updated.count > 0) {
-          const seq = await tx.numberSequence.findFirst({
-            where: { prefix: salePrefix, year: currentYear, month: null },
-            select: { lastNumber: true },
-          });
-          return seq!.lastNumber;
-        }
-        const created = await tx.numberSequence.create({
-          data: { prefix: salePrefix, year: currentYear, lastNumber: 1 },
-          select: { lastNumber: true },
-        });
-        return created.lastNumber;
-      },
-      { isolationLevel: 'Serializable' }
-    );
-
-    const saleNumber = `${salePrefix}-${currentYear}-${nextSaleNumber.toString().padStart(4, '0')}`;
+    // Sale number in its own serializable transaction so the increment
+    // survives a rollback of the conversion (standard SEQUENCE semantics).
+    const saleNumber = await generateSaleNumber();
 
     // Determine sale type
     const saleType = data.saleType || 'RESERVATION_SALE';
-    const carPrice = Number(quotation.finalPrice);
-    const depositAmount = Number(data.depositAmount || 0);
-    // Total = car price (the agreed sale price); deposit is an advance payment toward it.
-    // Remaining = total minus deposit, matching the standard sale creation formula
-    // (sales.service.ts: remainingAmount = totalAmount + buyerFees - depositAmount; quotations carry no fees).
-    const totalAmount = carPrice;
-    const remainingAmount = carPrice - depositAmount;
-
+    // Total = the agreed car price; the deposit is paid now toward it
+    // (remaining = total − deposit; quotations carry no buyer fees).
+    const amounts = reservationAmounts({
+      totalAmount: Number(quotation.finalPrice),
+      depositAmount: Number(data.depositAmount || 0),
+    });
     // Pre-generate receipt number outside transaction (uses its own sequence)
-    let receiptNumber: string | null = null;
-    if (depositAmount > 0) {
-      receiptNumber = await this.generateReceiptNumber();
-    }
+    const receiptNumber = amounts.depositAmount > 0 ? await generateReceiptNumber() : null;
+    // The JWT user carries no names — read them so ผู้รับเงิน is not "undefined undefined".
+    const issuedBy = receiptNumber
+      ? await resolveIssuedBy(currentUser.id, currentUser.username)
+      : '';
 
     // All mutations in a single transaction
     const result = await db.$transaction(async (tx) => {
-      const sale = await tx.sale.create({
-        data: {
+      const { sale } = await createReservationWithDeposit(tx, {
+        userId: currentUser.id,
+        sale: {
           saleNumber,
           type: saleType,
           status: saleType === 'DIRECT_SALE' ? 'PREPARING' : 'RESERVED',
@@ -620,52 +573,27 @@ export class QuotationsService {
           vehicleModelId: quotation.vehicleModelId,
           preferredExtColor: quotation.preferredExtColor,
           preferredIntColor: quotation.preferredIntColor,
-          totalAmount,
-          depositAmount,
-          paidAmount: depositAmount,
-          remainingAmount,
+          totalAmount: amounts.totalAmount,
+          depositAmount: amounts.depositAmount,
+          remainingAmount: amounts.remainingAmount,
           reservedDate: new Date(),
           discountSnapshot: quotation.discountAmount,
           paymentMode: data.paymentMode || 'CASH',
           notes: quotation.notes,
-          createdById: currentUser.id,
         },
-      });
-
-      // Create deposit payment if provided
-      if (depositAmount > 0 && receiptNumber) {
-        await tx.payment.create({
-          data: {
-            receiptNumber,
-            customerId: quotation.customerId,
-            saleId: sale.id,
-            paymentDate: new Date(),
-            paymentType: 'DEPOSIT',
-            amount: depositAmount,
-            paymentMethod: data.paymentMethod || 'CASH',
-            referenceNumber: data.paymentReferenceNumber || null,
-            notes: `เงินมัดจำจากใบเสนอราคา ${quotation.quotationNumber}`,
-            description: `เงินมัดจำ - ${saleNumber}`,
-            createdById: currentUser.id,
-            issuedBy: `${currentUser.firstName} ${currentUser.lastName}`,
-          },
-        });
-
-        await tx.activityLog.create({
-          data: {
-            userId: currentUser.id,
-            action: 'CREATE_DEPOSIT_PAYMENT',
-            entity: 'PAYMENT',
-            entityId: sale.id,
-            details: {
-              saleNumber: sale.saleNumber,
-              quotationNumber: quotation.quotationNumber,
-              depositAmount,
+        deposit: receiptNumber
+          ? {
+              receiptNumber,
+              paymentDate: new Date(),
               paymentMethod: data.paymentMethod || 'CASH',
-            },
-          },
-        });
-      }
+              referenceNumber: data.paymentReferenceNumber || null,
+              notes: `เงินมัดจำจากใบเสนอราคา ${quotation.quotationNumber}`,
+              description: `เงินมัดจำ - ${saleNumber}`,
+              issuedBy,
+              logDetails: { quotationNumber: quotation.quotationNumber },
+            }
+          : null,
+      });
 
       // Update quotation status to CONVERTED and link to sale
       const updatedQuotation = await tx.quotation.update({
@@ -695,12 +623,24 @@ export class QuotationsService {
         },
       });
 
-      // If stock is assigned, reserve it
+      // If stock is assigned, reserve it — only if still in the status checked above
       if (data.stockId) {
-        await tx.stock.update({
-          where: { id: data.stockId },
+        const reserved = await tx.stock.updateMany({
+          where: { id: data.stockId, status: pickedStockStatus, deletedAt: null },
           data: { status: 'RESERVED' },
         });
+        if (reserved.count === 0) {
+          throw new BadRequestError('Stock is not available');
+        }
+        if (pickedFromDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: data.stockId,
+            saleId: sale.id,
+            saleNumber: sale.saleNumber,
+            via: 'CONVERT_QUOTATION',
+          });
+        }
       }
 
       await tx.saleHistory.create({

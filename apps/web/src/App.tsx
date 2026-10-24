@@ -121,6 +121,7 @@ const queryClient = new QueryClient({
 });
 
 const P = PERMISSIONS;
+const SETTINGS_ROUTE_ROLES = [...new Set([...P.SETTINGS_VIEW, ...P.VEHICLE_TYPE_MANAGE])];
 
 function TitleUpdater() {
   const { companyName } = useCompany();
@@ -381,11 +382,11 @@ function App() {
                         </ProtectedRoute>
                       }
                     />
-                    {/* User Management Routes - Admin Only */}
+                    {/* Settings — admins see everything, VEHICLE_TYPE_MANAGE only ประเภทรถ */}
                     <Route
                       path="/settings"
                       element={
-                        <ProtectedRoute allowedRoles={P.SETTINGS_VIEW}>
+                        <ProtectedRoute allowedRoles={SETTINGS_ROUTE_ROLES}>
                           <SettingsPage />
                         </ProtectedRoute>
                       }

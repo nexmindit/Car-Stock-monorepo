@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
+import { useCompany } from './CompanyContext';
 import type { UserWithoutPassword } from '@car-stock/shared/types';
 
 const TOKEN_REFRESH_INTERVAL = 20 * 60 * 60 * 1000; // 20 hours (token expires in 24h)
@@ -18,6 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserWithoutPassword | null>(null);
   const [loading, setLoading] = useState(true);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { refreshSettings } = useCompany();
 
   const refreshToken = useCallback(async () => {
     try {
@@ -80,6 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.success && response.data) {
         setUser(response.data.user);
         startRefreshTimer();
+        // Settings need a token; reload them now (demo-sale policy, company name).
+        void refreshSettings();
       } else {
         throw new Error(response.message || 'Login failed');
       }

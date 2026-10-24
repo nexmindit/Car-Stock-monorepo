@@ -347,3 +347,56 @@ export function groupPaymentsByDay<T extends DailyPaymentRow>(payments: T[]) {
   }
   return days;
 }
+
+type VehicleModelName = {
+  brand?: string | null;
+  model?: string | null;
+  variant?: string | null;
+} | null;
+
+type SaleVehicleSource = {
+  stock?: { exteriorColor?: string | null; vehicleModel?: VehicleModelName } | null;
+  vehicleModel?: VehicleModelName;
+  preferredExtColor?: string | null;
+} | null;
+
+/**
+ * Receipt text for the car a sale is about, e.g. "CHERY Tiggo 8 PHEV 4WD Elite สีขาว".
+ * The linked unit wins; a booking with no VIN yet uses the booked model +
+ * preferred color. '' when the sale names no car (or there is no sale).
+ */
+export function describeSaleVehicle(sale: SaleVehicleSource | undefined): string {
+  if (!sale) return '';
+  const clean = (v?: string | null) => v?.trim() ?? '';
+  const vm = sale.stock?.vehicleModel ?? sale.vehicleModel;
+  const name = vm
+    ? [clean(vm.brand), clean(vm.model), clean(vm.variant)].filter(Boolean).join(' ')
+    : '';
+  const color = clean(sale.stock?.exteriorColor) || clean(sale.preferredExtColor);
+  // Thai color names read "สีขาว"; latin ones need a space ("สี White").
+  const colorText = !color
+    ? ''
+    : color.startsWith('สี')
+      ? color
+      : /^[฀-๿]/.test(color)
+        ? `สี${color}`
+        : `สี ${color}`;
+  return [name, colorText].filter(Boolean).join(' ');
+}
+
+/**
+ * Item rows for a receipt: the payment type carries the amount, then the car
+ * and the payment description each on their own line — the dot-matrix forms
+ * wrap/clip one long line, so the car never lengthens the first row.
+ */
+export function buildReceiptItems(args: {
+  typeLabel: string;
+  amount: string;
+  vehicle?: string | null;
+  description?: string | null;
+}): { description: string; amount: string }[] {
+  const items = [{ description: args.typeLabel, amount: args.amount }];
+  if (args.vehicle) items.push({ description: args.vehicle, amount: '' });
+  if (args.description) items.push({ description: args.description, amount: '' });
+  return items;
+}

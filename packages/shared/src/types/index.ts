@@ -5,12 +5,14 @@ import type {
   CreateCampaignSchema,
   CreateCustomerSchema,
   CreatePaymentSchema,
+  CreateReservationDepositSchema,
   CreateQuotationSchema,
   CreateSaleSchema,
   CreateStockSchema,
   CreateStockStatusSchema,
   CreateUserSchema,
   CreateVehicleModelSchema,
+  CreateVehicleTypeSchema,
   CustomerSchema,
   CustomerTypeSchema,
   DebtStatusSchema,
@@ -40,6 +42,7 @@ import type {
   UpdateStockSchema,
   UpdateUserSchema,
   UpdateVehicleModelSchema,
+  UpdateVehicleTypeSchema,
   UserSchema,
   UserStatusSchema,
   VehicleModelSchema,
@@ -95,12 +98,25 @@ export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
 export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
 export type CreateVehicleModelInput = z.infer<typeof CreateVehicleModelSchema>;
 export type UpdateVehicleModelInput = z.infer<typeof UpdateVehicleModelSchema>;
+export type CreateVehicleTypeInput = z.input<typeof CreateVehicleTypeSchema>;
+export type UpdateVehicleTypeInput = z.input<typeof UpdateVehicleTypeSchema>;
+
+/** A row of the vehicle_types table (ประเภทรถ). */
+export interface VehicleTypeItem {
+  code: string;
+  nameTh: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 export type CreateStockInput = z.infer<typeof CreateStockSchema>;
 export type UpdateStockInput = z.infer<typeof UpdateStockSchema>;
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>;
 export type FinanceCustomLine = z.infer<typeof FinanceCustomLineSchema>;
 export type CreatePaymentInput = z.infer<typeof CreatePaymentSchema>;
+export type CreateReservationDepositInput = z.infer<typeof CreateReservationDepositSchema>;
 export type VoidPaymentInput = z.infer<typeof VoidPaymentSchema>;
 export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>;
 export type UpdateCampaignInput = z.infer<typeof UpdateCampaignSchema>;

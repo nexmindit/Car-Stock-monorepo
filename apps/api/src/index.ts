@@ -25,6 +25,7 @@ import { stockRoutes } from './modules/stock/stock.controller';
 import { systemRoutes } from './modules/system/system.controller';
 import { systemService } from './modules/system/system.service';
 import { userRoutes } from './modules/users/users.controller';
+import { vehicleTypeRoutes } from './modules/vehicle-types/vehicle-types.controller';
 import { vehicleRoutes } from './modules/vehicles/vehicles.controller';
 // import { documentRoutes } from './modules/documents/documents.controller';
 
@@ -281,6 +282,7 @@ const app = new Elysia()
         .use(userRoutes)
         .use(customerRoutes)
         .use(vehicleRoutes)
+        .use(vehicleTypeRoutes)
         .use(stockRoutes)
         .use(salesRoutes)
         .use(paymentRoutes)

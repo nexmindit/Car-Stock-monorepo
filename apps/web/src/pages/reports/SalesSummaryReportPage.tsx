@@ -1,3 +1,4 @@
+import { SALE_STATUS_LABELS } from '@car-stock/shared/constants';
 import type {
   SalesBySalesperson,
   SalesSummaryItem,
@@ -19,7 +20,9 @@ import {
   formatCurrency,
   formatNumber,
 } from '../../components/reports';
-import { exportMultiSheet } from '../../components/reports/exportUtils';
+import { exportMultiSheet, sheetsByVehicleType } from '../../components/reports/exportUtils';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
+import { toDateInputValue } from '../../lib/utils';
 import { reportService } from '../../services/report.service';
 import { buildSalesSummaryExportRow } from './salesSummaryColumns';
 
@@ -30,24 +33,35 @@ export default function SalesSummaryReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState<string>('');
+  const { activeTypes, allTypes, typeLabel } = useVehicleTypes();
 
   // Default dates (first day of month to today)
   const today = new Date();
   const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const [startDate, setStartDate] = useState(firstDayOfMonth.toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(toDateInputValue(firstDayOfMonth));
+  const [endDate, setEndDate] = useState(toDateInputValue(today));
+  // Filters behind the data on screen; Excel/PDF/print use these so every output matches
+  // what the user is looking at, even if dates or dropdowns were changed without pressing กรองข้อมูล.
+  const [appliedFilters, setAppliedFilters] = useState<{
+    startDate: string;
+    endDate: string;
+    status?: string;
+    vehicleType?: string;
+  }>({ startDate, endDate });
 
   const fetchReport = async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await reportService.getSalesSummaryReport({
+      const filters = {
         startDate,
         endDate,
         status: statusFilter || undefined,
         vehicleType: vehicleTypeFilter || undefined,
-      });
+      };
+      const result = await reportService.getSalesSummaryReport(filters);
       setData(result);
+      setAppliedFilters(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
     } finally {
@@ -61,25 +75,22 @@ export default function SalesSummaryReportPage() {
     if (!data) return;
     try {
       setLoading(true);
-      const [sedan, pickup] = await Promise.all([
-        reportService.getSalesSummaryReport({
-          startDate,
-          endDate,
-          status: statusFilter || undefined,
-          vehicleType: 'SEDAN',
-        }),
-        reportService.getSalesSummaryReport({
-          startDate,
-          endDate,
-          status: statusFilter || undefined,
-          vehicleType: 'PICKUP',
-        }),
-      ]);
+      // Per-type sheets: same dates/status, every vehicle type.
+      const all = await reportService.getSalesSummaryReport({
+        startDate: appliedFilters.startDate,
+        endDate: appliedFilters.endDate,
+        status: appliedFilters.status,
+      });
       exportMultiSheet({
         sheets: [
           { name: 'รายการตัดขายประจำเดือน', data: data.sales.map(toSaleExportRow) },
-          { name: 'รายการตัดขายแยกเก๋ง', data: sedan.sales.map(toSaleExportRow) },
-          { name: 'รายการตัดขายแยกกะบะ', data: pickup.sales.map(toSaleExportRow) },
+          ...sheetsByVehicleType(all.sales, {
+            getType: (s) => s.vehicleType,
+            typeLabel,
+            typeOrder: allTypes.map((t) => t.code),
+            prefix: 'รายการตัดขายแยก',
+            toRow: toSaleExportRow,
+          }),
         ],
         filename: 'sales-summary',
       });
@@ -181,15 +192,11 @@ export default function SalesSummaryReportPage() {
   const handleExportPdf = async () => {
     try {
       setLoading(true);
-      const blob = await reportService.getSalesSummaryReportPdf({
-        startDate,
-        endDate,
-        status: statusFilter || undefined,
-      });
+      const blob = await reportService.getSalesSummaryReportPdf(appliedFilters);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `sales-summary-report-${startDate}.pdf`;
+      link.download = `sales-summary-report-${appliedFilters.startDate}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -237,15 +244,11 @@ export default function SalesSummaryReportPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ทั้งหมด</option>
-            <option value="QUOTATION">ใบเสนอราคา</option>
-            <option value="DEPOSIT_PENDING">รอวางมัดจำ</option>
-            <option value="DEPOSIT_RECEIVED">รับมัดจำแล้ว</option>
-            <option value="FINANCE_PENDING">รอไฟแนนซ์</option>
-            <option value="FINANCE_APPROVED">ไฟแนนซ์อนุมัติ</option>
-            <option value="PREPARING_DELIVERY">เตรียมส่งมอบ</option>
-            <option value="DELIVERED">ส่งมอบแล้ว</option>
-            <option value="COMPLETED">สำเร็จ</option>
-            <option value="CANCELED">ยกเลิก</option>
+            {Object.entries(SALE_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -256,13 +259,11 @@ export default function SalesSummaryReportPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ทั้งหมด</option>
-            <option value="SEDAN">เก๋ง</option>
-            <option value="PICKUP">กะบะ</option>
-            <option value="SUV">SUV</option>
-            <option value="HATCHBACK">แฮทช์แบ็ก</option>
-            <option value="MPV">MPV</option>
-            <option value="VAN">ตู้</option>
-            <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
+            {activeTypes.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.nameTh}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex items-end">
@@ -296,13 +297,7 @@ export default function SalesSummaryReportPage() {
         <PrintButton
           title="รายงานสรุปยอดขาย"
           disabled={loading || !data}
-          getPdf={() =>
-            reportService.getSalesSummaryReportPdf({
-              startDate,
-              endDate,
-              status: statusFilter || undefined,
-            })
-          }
+          getPdf={() => reportService.getSalesSummaryReportPdf(appliedFilters)}
         />
       </div>
 

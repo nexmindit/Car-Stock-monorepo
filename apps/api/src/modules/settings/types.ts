@@ -1,6 +1,7 @@
+import { DemoSaleSettingsSchema } from '@car-stock/shared/schemas';
 import { z } from 'zod';
 
-export const CompanySettingsSchema = z.object({
+const CompanyInfoSchema = z.object({
   companyNameTh: z.string().min(1, 'Company Name (TH) is required'),
   companyNameEn: z.string().min(1, 'Company Name (EN) is required'),
   taxId: z.string().min(1, 'Tax ID is required'),
@@ -13,5 +14,8 @@ export const CompanySettingsSchema = z.object({
   website: z.string().url().optional().or(z.literal('')),
   logo: z.string().optional(), // Base64 string
 });
+
+/** PUT /settings body: company info + the demo-sale switch/roles. */
+export const CompanySettingsSchema = CompanyInfoSchema.merge(DemoSaleSettingsSchema);
 
 export type CompanySettingsDTO = z.infer<typeof CompanySettingsSchema>;

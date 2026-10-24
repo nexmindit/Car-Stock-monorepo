@@ -8,7 +8,7 @@ import {
 // Import binds the name for local use; re-export keeps tests/consumers working.
 // Re-export-only does NOT bind splitVat in this module (ReferenceError on stock report).
 import { splitVat } from '@car-stock/shared/formulas';
-import type { PaymentStatus, SaleStatus, StockStatus, VehicleType } from '@prisma/client';
+import type { PaymentStatus, SaleStatus, StockStatus } from '@prisma/client';
 import type { Decimal } from '@prisma/client/runtime/library';
 import { db } from '../../lib/db';
 import { resolveReportStockNotes } from '../sales/sale-notes';
@@ -203,7 +203,7 @@ export async function getDailyPaymentReport(params: DailyPaymentParams) {
 interface StockReportParams extends StockAttributeFilters {
   startDate?: Date;
   endDate?: Date;
-  vehicleType?: VehicleType;
+  vehicleType?: string;
 }
 
 /** Inventory still on the lot: ready to sell + demo. Sales-lifecycle statuses stay off this report. */
@@ -231,6 +231,7 @@ export async function getStockReport(params: StockReportParams) {
           model: true,
           variant: true,
           year: true,
+          type: true,
         },
       },
       interestPeriods: {
@@ -309,6 +310,7 @@ export async function getStockReport(params: StockReportParams) {
       variant: s.vehicleModel.variant,
       year: s.vehicleModel.year,
       vehicleModelName: `${s.vehicleModel.brand} ${s.vehicleModel.model} ${s.vehicleModel.variant || ''}`,
+      vehicleType: s.vehicleModel.type,
       exteriorColor: s.exteriorColor,
       interiorColor: s.interiorColor,
       status: s.status,
@@ -607,7 +609,7 @@ interface SalesSummaryParams {
   endDate?: Date;
   status?: SaleStatus;
   salespersonId?: string;
-  vehicleType?: VehicleType;
+  vehicleType?: string;
 }
 
 export async function getSalesSummaryReport(params: SalesSummaryParams) {
@@ -679,7 +681,15 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
       stock: {
         include: {
           vehicleModel: {
-            select: { id: true, brand: true, model: true, variant: true, year: true, price: true },
+            select: {
+              id: true,
+              brand: true,
+              model: true,
+              variant: true,
+              year: true,
+              price: true,
+              type: true,
+            },
           },
           interestPeriods: {
             select: {
@@ -693,7 +703,15 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
         },
       },
       vehicleModel: {
-        select: { id: true, brand: true, model: true, variant: true, year: true, price: true },
+        select: {
+              id: true,
+              brand: true,
+              model: true,
+              variant: true,
+              year: true,
+              price: true,
+              type: true,
+            },
       },
       createdBy: { select: { id: true, firstName: true, lastName: true } },
     },
@@ -807,6 +825,7 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
       vehicleModelName: vehicleModel
         ? `${vehicleModel.brand} ${vehicleModel.model} ${vehicleModel.variant || ''}`
         : 'N/A',
+      vehicleType: vehicleModel?.type ?? null,
       engineNumber: stock?.engineNumber || '-',
       chassisNumber: stock?.vin || '-',
       saleType: sale.type,
@@ -1598,7 +1617,7 @@ export async function getDailyStockSnapshot(params: { date: Date }) {
 export async function getMonthlyPurchasesReport(params: {
   year: number;
   month: number;
-  vehicleType?: VehicleType;
+  vehicleType?: string;
 }) {
   const { year, month, vehicleType } = params;
 
@@ -1640,6 +1659,7 @@ export async function getMonthlyPurchasesReport(params: {
     return {
       no: idx + 1,
       vehicleModelName: `${s.vehicleModel.brand} ${s.vehicleModel.model}${variantStr}`,
+      vehicleType: s.vehicleModel.type,
       exteriorColor: s.exteriorColor,
       vin: s.vin,
       engineNumber: s.engineNumber || '-',
@@ -1661,7 +1681,7 @@ export async function getMonthlyPurchasesReport(params: {
   const totalPriceVat = items.reduce((sum, i) => sum + i.priceVat, 0);
   const totalPriceGross = items.reduce((sum, i) => sum + i.priceGross, 0);
 
-  const byTypeMap = new Map<VehicleType, { count: number; totalGross: number }>();
+  const byTypeMap = new Map<string, { count: number; totalGross: number }>();
   stocks.forEach((s, idx) => {
     const t = s.vehicleModel.type;
     const cur = byTypeMap.get(t) || { count: 0, totalGross: 0 };
