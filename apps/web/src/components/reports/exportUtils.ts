@@ -116,3 +116,48 @@ export function exportToExcel({
     filename,
   });
 }
+
+/** Excel sheet names: max 31 chars, none of : \ / ? * [ ] */
+export function toSheetName(name: string): string {
+  return name.replace(/[:\/?*[\]]/g, ' ').slice(0, 31);
+}
+
+/**
+ * One sheet per vehicle type that actually has rows (e.g. "รายการซื้อแยกเก๋ง"),
+ * ordered like `typeOrder` (vehicle_types sortOrder); unknown types go last.
+ */
+export function sheetsByVehicleType<T>(
+  rows: T[],
+  {
+    getType,
+    typeLabel,
+    typeOrder,
+    prefix,
+    toRow,
+  }: {
+    getType: (row: T) => string | null | undefined;
+    typeLabel: (code: string) => string;
+    typeOrder: string[];
+    prefix: string;
+    toRow: (row: T, index: number) => Record<string, unknown>;
+  }
+): SheetData[] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const type = getType(row);
+    if (!type) continue;
+    const list = groups.get(type) ?? [];
+    list.push(row);
+    groups.set(type, list);
+  }
+  const rank = (code: string) => {
+    const i = typeOrder.indexOf(code);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return [...groups.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([type, list]) => ({
+      name: toSheetName(`${prefix}${typeLabel(type)}`),
+      data: list.map(toRow),
+    }));
+}

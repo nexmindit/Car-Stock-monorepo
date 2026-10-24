@@ -1,13 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '../../components/layout';
-import { Save, Upload, Building } from 'lucide-react';
+import { Save, Upload, Building, Settings } from 'lucide-react';
 import { settingsService } from '../../services/settings.service';
 import BankAccountsSection from './BankAccountsSection';
+import VehicleTypesSection from './VehicleTypesSection';
+import { usePermission } from '../../hooks/usePermission';
 import { useMutationHandler, useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
 
 export default function SettingsPage() {
     const { addToast } = useToast();
+    const { hasPermission } = usePermission();
+    // Company + bank sections are ADMIN-only (SETTINGS_VIEW); VEHICLE_TYPE_MANAGE roles
+    // reach this page for the ประเภทรถ section alone.
+    const canCompany = hasPermission('SETTINGS_VIEW');
+    const canVehicleTypes = hasPermission('VEHICLE_TYPE_MANAGE');
     const { execute: executeQuery } = useErrorHandler();
     const { execute: executeSave } = useMutationHandler('บันทึกการตั้งค่าสำเร็จ');
     const [loading, setLoading] = useState(false);
@@ -38,8 +45,8 @@ export default function SettingsPage() {
     }, []);
 
     useEffect(() => {
-        fetchSettings();
-    }, []);
+        if (canCompany) fetchSettings();
+    }, [canCompany]);
 
     const fetchSettings = async () => {
         setLoading(true);
@@ -95,6 +102,24 @@ export default function SettingsPage() {
         await executeSave(settingsService.updateSettings(formData));
         setSaving(false);
     };
+
+    if (!canCompany) {
+        return (
+            <MainLayout>
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                        <Settings className="w-6 h-6" />
+                        ตั้งค่า
+                    </h1>
+                </div>
+                {canVehicleTypes && (
+                    <div className="max-w-4xl pb-12">
+                        <VehicleTypesSection />
+                    </div>
+                )}
+            </MainLayout>
+        );
+    }
 
     if (loading) {
         return (
@@ -241,6 +266,13 @@ export default function SettingsPage() {
             <div className="max-w-4xl mt-8">
                 <BankAccountsSection />
             </div>
+
+            {/* Vehicle Types Master Data */}
+            {canVehicleTypes && (
+                <div className="max-w-4xl mt-8 pb-12">
+                    <VehicleTypesSection />
+                </div>
+            )}
         </MainLayout>
     );
 }

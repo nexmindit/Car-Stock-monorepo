@@ -3,10 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { vehicleService } from '../../services/vehicle.service';
 import type { VehicleModel } from '../../services/vehicle.service';
 import { MainLayout } from '../../components/layout';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { ArrowLeft, Edit, Car, Calendar, Tag } from 'lucide-react';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 export default function VehicleDetailPage() {
+  const { typeLabel } = useVehicleTypes();
   const { id } = useParams();
   const navigate = useNavigate();
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
@@ -121,7 +123,7 @@ export default function VehicleDetailPage() {
                 <Tag className="h-5 w-5 text-gray-400 mt-1 mr-3" />
                 <div>
                   <p className="text-sm text-gray-500">ประเภท</p>
-                  <p className="text-gray-900">{vehicle.type}</p>
+                  <p className="text-gray-900">{typeLabel(vehicle.type)}</p>
                 </div>
               </div>
 

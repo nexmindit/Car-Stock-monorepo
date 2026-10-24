@@ -19,7 +19,8 @@ import {
   formatCurrency,
   formatNumber,
 } from '../../components/reports';
-import { exportMultiSheet } from '../../components/reports/exportUtils';
+import { exportMultiSheet, sheetsByVehicleType } from '../../components/reports/exportUtils';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { reportService } from '../../services/report.service';
 import { buildSalesSummaryExportRow } from './salesSummaryColumns';
 
@@ -30,6 +31,7 @@ export default function SalesSummaryReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState<string>('');
+  const { activeTypes, allTypes, typeLabel } = useVehicleTypes();
 
   // Default dates (first day of month to today)
   const today = new Date();
@@ -61,25 +63,22 @@ export default function SalesSummaryReportPage() {
     if (!data) return;
     try {
       setLoading(true);
-      const [sedan, pickup] = await Promise.all([
-        reportService.getSalesSummaryReport({
-          startDate,
-          endDate,
-          status: statusFilter || undefined,
-          vehicleType: 'SEDAN',
-        }),
-        reportService.getSalesSummaryReport({
-          startDate,
-          endDate,
-          status: statusFilter || undefined,
-          vehicleType: 'PICKUP',
-        }),
-      ]);
+      // Per-type sheets: same dates/status, every vehicle type.
+      const all = await reportService.getSalesSummaryReport({
+        startDate,
+        endDate,
+        status: statusFilter || undefined,
+      });
       exportMultiSheet({
         sheets: [
           { name: 'รายการตัดขายประจำเดือน', data: data.sales.map(toSaleExportRow) },
-          { name: 'รายการตัดขายแยกเก๋ง', data: sedan.sales.map(toSaleExportRow) },
-          { name: 'รายการตัดขายแยกกะบะ', data: pickup.sales.map(toSaleExportRow) },
+          ...sheetsByVehicleType(all.sales, {
+            getType: (s) => s.vehicleType,
+            typeLabel,
+            typeOrder: allTypes.map((t) => t.code),
+            prefix: 'รายการตัดขายแยก',
+            toRow: toSaleExportRow,
+          }),
         ],
         filename: 'sales-summary',
       });
@@ -256,13 +255,11 @@ export default function SalesSummaryReportPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ทั้งหมด</option>
-            <option value="SEDAN">เก๋ง</option>
-            <option value="PICKUP">กะบะ</option>
-            <option value="SUV">SUV</option>
-            <option value="HATCHBACK">แฮทช์แบ็ก</option>
-            <option value="MPV">MPV</option>
-            <option value="VAN">ตู้</option>
-            <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
+            {activeTypes.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.nameTh}
+              </option>
+            ))}
           </select>
         </div>
         <div className="flex items-end">

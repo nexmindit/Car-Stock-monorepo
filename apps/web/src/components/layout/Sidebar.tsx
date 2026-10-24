@@ -28,7 +28,8 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ReactNode;
-  permission?: Permission;
+  /** Shown when the user has this permission (or any of them, for a list). */
+  permission?: Permission | readonly Permission[];
 }
 
 const navItems: NavItem[] = [
@@ -92,7 +93,8 @@ const navItems: NavItem[] = [
     to: '/settings',
     label: 'ตั้งค่าบริษัท',
     icon: <Settings className="w-5 h-5" />,
-    permission: 'SETTINGS_VIEW',
+    // Admins see every section; VEHICLE_TYPE_MANAGE roles see only ประเภทรถ.
+    permission: ['SETTINGS_VIEW', 'VEHICLE_TYPE_MANAGE'],
   },
   {
     to: '/system',
@@ -104,7 +106,7 @@ const navItems: NavItem[] = [
 
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { hasPermission, user } = usePermission();
+  const { hasPermission, hasAnyPermission, user } = usePermission();
   const { companyName } = useCompany();
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
@@ -172,7 +174,7 @@ export const Sidebar: React.FC = () => {
         )}
         <ul className="space-y-1">
           {navItems
-            .filter((item) => !item.permission || hasPermission(item.permission))
+            .filter((item) => !item.permission || hasAnyPermission([item.permission].flat()))
             .map((item) => (
               <li key={item.to}>
                 <Link

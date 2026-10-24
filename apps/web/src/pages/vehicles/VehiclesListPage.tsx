@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { vehicleService } from '../../services/vehicle.service';
 import type { VehicleModel } from '../../services/vehicle.service';
 import { MainLayout } from '../../components/layout';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { Plus, Search, Edit, Trash2, Car } from 'lucide-react';
 import { useMutationHandler, useErrorHandler } from '../../hooks/useErrorHandler';
 import {
@@ -21,6 +22,7 @@ import {
 
 export default function VehiclesListPage() {
   const { execute: executeQuery } = useErrorHandler();
+  const { typeLabel } = useVehicleTypes();
   const { execute: executeDelete } = useMutationHandler('ลบรุ่นรถสำเร็จ');
   const [vehicles, setVehicles] = useState<VehicleModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +145,7 @@ export default function VehiclesListPage() {
                       </TableCell>
                       <TableCell>
                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                          {vehicle.type}
+                          {typeLabel(vehicle.type)}
                         </span>
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">

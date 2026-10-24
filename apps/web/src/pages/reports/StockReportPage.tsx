@@ -16,11 +16,12 @@ import {
   formatDate,
   formatNumber,
 } from '../../components/reports';
-import { exportMultiSheet } from '../../components/reports/exportUtils';
+import { exportMultiSheet, sheetsByVehicleType } from '../../components/reports/exportUtils';
 import {
   type StockAttributeFilterValues,
   useStockAttributeFilters,
 } from '../../hooks/useStockAttributeFilters';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { reportService } from '../../services/report.service';
 
 export default function StockReportPage() {
@@ -29,6 +30,7 @@ export default function StockReportPage() {
   const [data, setData] = useState<StockReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState<string>('');
+  const { activeTypes, allTypes, typeLabel } = useVehicleTypes();
   const {
     filters: attrFilters,
     setFilter: setAttrFilter,
@@ -150,25 +152,18 @@ export default function StockReportPage() {
     if (!data) return;
     try {
       setLoading(true);
-      const [sedan, pickup] = await Promise.all([
-        reportService.getStockReport({
-          startDate,
-          endDate,
-          vehicleType: 'SEDAN',
-          ...attrFilters,
-        }),
-        reportService.getStockReport({
-          startDate,
-          endDate,
-          vehicleType: 'PICKUP',
-          ...attrFilters,
-        }),
-      ]);
+      // Per-type sheets: same dates/attribute filters, every vehicle type.
+      const all = await reportService.getStockReport({ startDate, endDate, ...attrFilters });
       exportMultiSheet({
         sheets: [
           { name: 'สต็อกรถทั้งหมด', data: data.stocks.map(toExportRow) },
-          { name: 'สต็อกแยกเก๋ง', data: sedan.stocks.map(toExportRow) },
-          { name: 'สต็อกแยกกะบะ', data: pickup.stocks.map(toExportRow) },
+          ...sheetsByVehicleType(all.stocks, {
+            getType: (s) => s.vehicleType,
+            typeLabel,
+            typeOrder: allTypes.map((t) => t.code),
+            prefix: 'สต็อกแยก',
+            toRow: toExportRow,
+          }),
         ],
         filename: 'stock-report',
       });
@@ -239,13 +234,11 @@ export default function StockReportPage() {
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
             <option value="">ทั้งหมด</option>
-            <option value="SEDAN">เก๋ง</option>
-            <option value="PICKUP">กะบะ</option>
-            <option value="SUV">SUV</option>
-            <option value="HATCHBACK">แฮทช์แบ็ก</option>
-            <option value="MPV">MPV</option>
-            <option value="VAN">ตู้</option>
-            <option value="MOTORCYCLE">มอเตอร์ไซค์</option>
+            {activeTypes.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.nameTh}
+              </option>
+            ))}
           </select>
         </div>
         {attrSelects.map(([key, label, values]) => (

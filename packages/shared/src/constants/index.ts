@@ -162,22 +162,6 @@ export const REFUND_POLICY_LABELS = {
   NO_REFUND: 'ไม่คืนเงิน',
 } as const;
 
-export const VEHICLE_TYPE_LABELS = {
-  SUV: 'SUV',
-  SEDAN: 'Sedan',
-  PICKUP: 'Pickup',
-  HATCHBACK: 'Hatchback',
-  MPV: 'MPV',
-  COUPE: 'Coupe',
-  CONVERTIBLE: 'Convertible',
-  WAGON: 'Wagon',
-  VAN: 'Van',
-  TRUCK: 'Truck',
-  CROSSOVER: 'Crossover',
-  EV: 'Electric Vehicle',
-  MOTORCYCLE: 'มอเตอร์ไซค์',
-} as const;
-
 export const QUOTATION_STATUS_LABELS = {
   DRAFT: 'ร่าง',
   SENT: 'ส่งแล้ว',
