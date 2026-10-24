@@ -9,6 +9,7 @@ import { stockService } from '../../services/stock.service';
 import { usePermission } from '../../hooks/usePermission';
 import { MainLayout } from '../../components/layout';
 import { DatePicker } from '../../components/ui/date-picker';
+import { toDateInputValue } from '../../lib/utils';
 import {
   ArrowLeft,
   CreditCard,
@@ -154,7 +155,7 @@ export default function PaymentFormPage() {
     saleId: '',
     customerId: '',
     amount: 0,
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: toDateInputValue(),
     paymentType: 'DEPOSIT',
     paymentMethod: 'CASH',
     referenceNumber: '',

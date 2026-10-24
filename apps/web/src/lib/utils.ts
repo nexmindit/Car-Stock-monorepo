@@ -14,6 +14,15 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+/**
+ * yyyy-mm-dd for <input type="date"> in the browser's local day.
+ * `toISOString().split('T')[0]` is the UTC day — yesterday before 07:00 in Bangkok.
+ */
+export function toDateInputValue(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
