@@ -817,13 +817,13 @@ export class StockService {
         select: { primaryColor: true, secondaryColor: true },
       }),
       db.stock.findMany({
-        where: { vehicleModelId },
+        where: { vehicleModelId, deletedAt: null },
         select: { exteriorColor: true },
         distinct: ['exteriorColor'],
         orderBy: { exteriorColor: 'asc' },
       }),
       db.stock.findMany({
-        where: { vehicleModelId, interiorColor: { not: null } },
+        where: { vehicleModelId, deletedAt: null, interiorColor: { not: null } },
         select: { interiorColor: true },
         distinct: ['interiorColor'],
         orderBy: { interiorColor: 'asc' },

@@ -186,6 +186,7 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
         receivingBankName: t.Optional(t.String()),
         receivingAccountNumber: t.Optional(t.String()),
         receivingBranch: t.Optional(t.String()),
+        description: t.Optional(t.String()),
         notes: t.Optional(t.String()),
         createdAt: t.Optional(t.Union([t.Date(), t.String()])),
       }),

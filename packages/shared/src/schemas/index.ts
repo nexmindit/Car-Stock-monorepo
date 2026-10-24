@@ -564,8 +564,11 @@ export const CreateReservationDepositSchema = z
     receivingBankName: z.string().optional(),
     receivingAccountNumber: z.string().optional(),
     receivingBranch: z.string().optional(),
+    // Printed as an extra item line on the receipt (same as sale-mode หมายเหตุ).
+    description: z.string().optional(),
     notes: z.string().optional(),
     // Optional business date of the booking (backdating, like CreateSaleSchema).
+    // Defaults to paymentDate so a back-keyed deposit keeps its campaign/report day.
     createdAt: z.coerce.date().optional(),
   })
   .refine((d) => d.totalAmount === undefined || d.depositAmount <= d.totalAmount, {

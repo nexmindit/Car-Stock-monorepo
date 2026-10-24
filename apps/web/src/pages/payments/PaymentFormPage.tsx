@@ -480,7 +480,7 @@ export default function PaymentFormPage() {
             receivingBankName: formData.receivingBankName || undefined,
             receivingAccountNumber: formData.receivingAccountNumber || undefined,
             receivingBranch: formData.receivingBranch || undefined,
-            notes: formData.description.trim() || undefined,
+            description: formData.description.trim() || undefined,
           })
           .then((payment) => {
             addToast(

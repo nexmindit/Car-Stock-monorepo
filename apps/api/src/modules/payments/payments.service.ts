@@ -375,8 +375,12 @@ export class PaymentsService {
       modelPrice: Number(vehicleModel.price),
     });
 
+    // A deposit keyed in after the fact belongs to the day it was received:
+    // that day drives the campaign tag and the daily stock snapshot.
+    const bookedAt = validated.createdAt ?? validated.paymentDate;
+
     // Tag the active campaign the same way createSale does (sales-page bookings).
-    const saleDay = campaignDay(validated.createdAt ?? new Date());
+    const saleDay = campaignDay(bookedAt);
     const campaignId = await findActiveCampaignIdForModel(vehicleModel.id, saleDay);
     const campaignSubsidySnapshot = await campaignFormulasService.computeSaleSubsidySnapshot({
       campaignId,
@@ -404,11 +408,11 @@ export class PaymentsService {
           totalAmount: amounts.totalAmount,
           depositAmount: amounts.depositAmount,
           remainingAmount: amounts.remainingAmount,
-          reservedDate: validated.createdAt ?? new Date(),
+          reservedDate: bookedAt,
           campaignId: campaignId ?? null,
           campaignSubsidySnapshot,
           paymentMode: 'CASH',
-          ...(validated.createdAt ? { createdAt: validated.createdAt } : {}),
+          createdAt: bookedAt,
         },
         deposit: {
           receiptNumber,
@@ -416,6 +420,7 @@ export class PaymentsService {
           paymentMethod: validated.paymentMethod,
           referenceNumber: validated.referenceNumber,
           notes: validated.notes,
+          description: validated.description,
           receivingBank: validated.receivingBank,
           receivingBankName: validated.receivingBankName,
           receivingAccountNumber: validated.receivingAccountNumber,

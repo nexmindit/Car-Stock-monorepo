@@ -125,6 +125,8 @@ export interface CreateReservationDepositData {
   receivingBankName?: string;
   receivingAccountNumber?: string;
   receivingBranch?: string;
+  /** Extra receipt item line (the form's หมายเหตุ), same as sale mode. */
+  description?: string;
   notes?: string;
 }
 
