@@ -12,6 +12,7 @@ import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
 import { MainLayout } from '../../components/layout';
 import { usePermission } from '../../hooks/usePermission';
+import { useVehicleTypes } from '../../hooks/useVehicleTypes';
 import { printHtmlViaPopup } from '../../components/reports/PrintButton';
 import {
   ArrowLeft,
@@ -60,6 +61,7 @@ export default function StockDetailPage() {
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
 
   const { hasPermission } = usePermission();
+  const { typeLabel } = useVehicleTypes();
   const canEdit = hasPermission('STOCK_UPDATE');
   const canUpdateStatus = hasPermission('STOCK_UPDATE');
   const canRecalculateInterest = hasPermission('INTEREST_UPDATE');
@@ -273,7 +275,7 @@ export default function StockDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">ประเภท</p>
-                <p className="text-gray-900">{stock.vehicleModel.type}</p>
+                <p className="text-gray-900">{typeLabel(stock.vehicleModel.type)}</p>
               </div>
             </div>
           </div>

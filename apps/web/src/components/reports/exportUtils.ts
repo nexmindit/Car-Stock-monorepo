@@ -119,7 +119,18 @@ export function exportToExcel({
 
 /** Excel sheet names: max 31 chars, none of : \ / ? * [ ] */
 export function toSheetName(name: string): string {
-  return name.replace(/[:\/?*[\]]/g, ' ').slice(0, 31);
+  return name.replace(/[:\\/?*[\]]/g, ' ').slice(0, 31);
+}
+
+/** Excel rejects duplicate sheet names (case-insensitive) — suffix " (2)", " (3)"… */
+function uniqueSheetName(name: string, used: Set<string>): string {
+  let candidate = name;
+  for (let n = 2; used.has(candidate.toLowerCase()); n++) {
+    const suffix = ` (${n})`;
+    candidate = `${name.slice(0, 31 - suffix.length)}${suffix}`;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
 }
 
 /**
@@ -154,10 +165,11 @@ export function sheetsByVehicleType<T>(
     const i = typeOrder.indexOf(code);
     return i === -1 ? Number.MAX_SAFE_INTEGER : i;
   };
+  const used = new Set<string>();
   return [...groups.entries()]
     .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
     .map(([type, list]) => ({
-      name: toSheetName(`${prefix}${typeLabel(type)}`),
+      name: uniqueSheetName(toSheetName(`${prefix}${typeLabel(type)}`), used),
       data: list.map(toRow),
     }));
 }
