@@ -11,6 +11,13 @@ export type PaymentType =
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'CREDIT_CARD';
 export type PaymentStatus = 'ACTIVE' | 'VOIDED';
 
+export interface SaleVehicleModel {
+  id?: string;
+  brand: string;
+  model: string;
+  variant?: string | null;
+}
+
 export interface Payment {
   id: string;
   receiptNumber: string;
@@ -39,6 +46,18 @@ export interface Payment {
     saleNumber: string;
     totalAmount?: number;
     remainingAmount?: number;
+    preferredExtColor?: string | null;
+    preferredIntColor?: string | null;
+    /** Linked unit (null while a booking has no VIN yet). */
+    stock?: {
+      id: string;
+      vin: string;
+      exteriorColor?: string | null;
+      interiorColor?: string | null;
+      vehicleModel?: SaleVehicleModel | null;
+    } | null;
+    /** Booked model — the car while no VIN is linked. */
+    vehicleModel?: SaleVehicleModel | null;
   } | null;
   createdBy?: {
     id: string;
@@ -88,6 +107,25 @@ export interface CreatePaymentData {
   receivingBranch?: string;
   actualReceivedDate?: string;
   netReceivedAmount?: number;
+}
+
+/** จองรถจากหน้าชำระเงิน — POST /api/payments/reservation-deposit. */
+export interface CreateReservationDepositData {
+  customerId: string;
+  vehicleModelId: string;
+  preferredExtColor: string;
+  preferredIntColor?: string;
+  /** Car price; the API defaults it to the model price when omitted. */
+  totalAmount?: number;
+  depositAmount: number;
+  paymentDate: string;
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
+  receivingBank?: string;
+  receivingBankName?: string;
+  receivingAccountNumber?: string;
+  receivingBranch?: string;
+  notes?: string;
 }
 
 /** Fields allowed when editing an existing receipt (PATCH /api/payments/:id). */
@@ -231,6 +269,18 @@ class PaymentService {
    */
   async create(data: CreatePaymentData): Promise<Payment> {
     const response = await api.post<ApiResponse<Payment>>(this.baseUrl, data);
+    return response.data;
+  }
+
+  /**
+   * Book a car by model + color (no VIN yet) and record its deposit in one step.
+   * Returns the deposit payment (with its new sale).
+   */
+  async createReservationDeposit(data: CreateReservationDepositData): Promise<Payment> {
+    const response = await api.post<ApiResponse<Payment>>(
+      `${this.baseUrl}/reservation-deposit`,
+      data
+    );
     return response.data;
   }
 

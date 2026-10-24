@@ -427,6 +427,44 @@ export default function PaymentDetailPage() {
                     </dd>
                   </div>
                 )}
+                {(() => {
+                  // Linked unit first; a booking without a VIN shows the booked model + color.
+                  const sale = payment.sale;
+                  const vm = sale.stock?.vehicleModel ?? sale.vehicleModel;
+                  const carName = vm
+                    ? [vm.brand, vm.model, vm.variant].filter(Boolean).join(' ')
+                    : '';
+                  const color = sale.stock?.exteriorColor || sale.preferredExtColor || '';
+                  const intColor = sale.stock?.interiorColor || sale.preferredIntColor || '';
+                  if (!carName && !sale.stock) return null;
+                  return (
+                    <>
+                      <div>
+                        <dt className="text-sm text-gray-500">รถ</dt>
+                        <dd className="text-sm font-medium">{carName || '-'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm text-gray-500">สี</dt>
+                        <dd className="text-sm font-medium">
+                          {color || '-'}
+                          {intColor && (
+                            <span className="text-gray-500 font-normal"> (ภายใน {intColor})</span>
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-sm text-gray-500">เลข VIN</dt>
+                        <dd className="text-sm font-medium">
+                          {sale.stock?.vin ? (
+                            <span className="font-mono">{sale.stock.vin}</span>
+                          ) : (
+                            <span className="text-amber-700">ยังไม่ระบุ VIN</span>
+                          )}
+                        </dd>
+                      </div>
+                    </>
+                  );
+                })()}
               </dl>
             </div>
           ) : (

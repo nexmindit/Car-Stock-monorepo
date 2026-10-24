@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { paymentService, type CreatePaymentData, type PaymentType, type PaymentMethod } from '../../services/payment.service';
 import { salesService } from '../../services/sales.service';
 import { customerService, type Customer } from '../../services/customer.service';
 import { bankAccountsService, type BankAccount } from '../../services/bank-accounts.service';
+import { vehicleService, type VehicleModel } from '../../services/vehicle.service';
+import { stockService } from '../../services/stock.service';
+import { usePermission } from '../../hooks/usePermission';
 import { MainLayout } from '../../components/layout';
 import { DatePicker } from '../../components/ui/date-picker';
 import {
@@ -13,9 +16,14 @@ import {
   Save,
   FileText,
   User,
-  Receipt
+  Receipt,
+  Car
 } from 'lucide-react';
-import { AsyncSearchSelect, type SearchSelectOption } from '../../components/ui/search-select';
+import {
+  AsyncSearchSelect,
+  SearchSelect,
+  type SearchSelectOption,
+} from '../../components/ui/search-select';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
 
@@ -54,12 +62,28 @@ interface SaleInfo {
   };
   stock?: {
     vin: string;
+    exteriorColor?: string | null;
     vehicleModel: {
       brand: string;
       model: string;
-      variant?: string;
+      variant?: string | null;
     };
-  };
+  } | null;
+  /** Booked model — the car while no VIN is linked yet. */
+  vehicleModel?: {
+    brand: string;
+    model: string;
+    variant?: string | null;
+  } | null;
+  preferredExtColor?: string | null;
+}
+
+/** Model name + color of the selected sale — linked unit first, else the booking. */
+function describeSale(sale: SaleInfo): { name: string; color: string } {
+  const vm = sale.stock?.vehicleModel ?? sale.vehicleModel;
+  const name = vm ? [vm.brand, vm.model, vm.variant].filter(Boolean).join(' ') : '';
+  const color = sale.stock?.exteriorColor || sale.preferredExtColor || '';
+  return { name, color };
 }
 
 interface CustomerInfo {
@@ -86,7 +110,23 @@ interface FormData {
   netReceivedAmount?: number;
 }
 
-type PaymentMode = 'sale' | 'miscellaneous';
+/** reservation = จองรถ (รุ่น+สี ยังไม่ระบุ VIN): creates the booking sale and its deposit receipt. */
+type PaymentMode = 'sale' | 'miscellaneous' | 'reservation';
+
+interface ReservationFields {
+  vehicleModelId: string;
+  preferredExtColor: string;
+  preferredIntColor: string;
+  /** Car price — prefilled from the model price, editable. */
+  totalAmount: number;
+}
+
+const EMPTY_RESERVATION: ReservationFields = {
+  vehicleModelId: '',
+  preferredExtColor: '',
+  preferredIntColor: '',
+  totalAmount: 0,
+};
 
 export default function PaymentFormPage() {
   const navigate = useNavigate();
@@ -94,6 +134,9 @@ export default function PaymentFormPage() {
   const preSelectedSaleId = searchParams.get('saleId');
   const { addToast } = useToast();
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
+  const { hasAllPermissions } = usePermission();
+  // A booking creates a sale and a payment — the API requires both rights.
+  const canReserve = hasAllPermissions(['PAYMENT_CREATE', 'SALE_CREATE']);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -127,6 +170,14 @@ export default function PaymentFormPage() {
 
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
+  // จองรถ mode
+  const [reservation, setReservation] = useState<ReservationFields>(EMPTY_RESERVATION);
+  const [vehicleModels, setVehicleModels] = useState<VehicleModel[]>([]);
+  const [colorSuggestions, setColorSuggestions] = useState<{
+    exteriorColors: string[];
+    interiorColors: string[];
+  }>({ exteriorColors: [], interiorColors: [] });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -146,9 +197,30 @@ export default function PaymentFormPage() {
     });
   }, []);
 
+  // Vehicle models for จองรถ — loaded the first time that mode is opened
+  useEffect(() => {
+    if (paymentMode !== 'reservation' || vehicleModels.length > 0) return;
+    vehicleService
+      .getAllPages()
+      .then((res) => setVehicleModels(res.data))
+      .catch((error) => console.error('Error loading vehicle models:', error));
+  }, [paymentMode, vehicleModels.length]);
+
   // Reset form when switching payment mode
   useEffect(() => {
-    if (paymentMode === 'miscellaneous') {
+    setErrors({});
+    if (paymentMode === 'reservation') {
+      setSaleInfo(null);
+      setFormData(prev => ({
+        ...prev,
+        saleId: '',
+        customerId: customerInfo?.id || '',
+        paymentType: 'DEPOSIT',
+        amount: 0,
+        description: '',
+      }));
+    } else if (paymentMode === 'miscellaneous') {
+      setReservation(EMPTY_RESERVATION);
       setSaleInfo(null);
       setFormData(prev => ({
         ...prev,
@@ -166,6 +238,7 @@ export default function PaymentFormPage() {
       }));
     } else {
       setCustomerInfo(null);
+      setReservation(EMPTY_RESERVATION);
       setFormData(prev => ({
         ...prev,
         saleId: saleInfo?.id || '',
@@ -190,6 +263,8 @@ export default function PaymentFormPage() {
           status: sale.status,
           customer: sale.customer,
           stock: sale.stock,
+          vehicleModel: sale.vehicleModel,
+          preferredExtColor: sale.preferredExtColor,
         };
         setSaleInfo(info);
         setFormData(prev => ({
@@ -198,6 +273,8 @@ export default function PaymentFormPage() {
           customerId: sale.customer.id,
           amount: sale.remainingAmount > 0 ? sale.remainingAmount : 0,
         }));
+        // execute() returns undefined on error — a value here means the sale loaded.
+        return true;
       })
     );
     if (!result) {
@@ -223,6 +300,8 @@ export default function PaymentFormPage() {
           status: sale.status,
           customer: sale.customer,
           stock: sale.stock,
+          vehicleModel: sale.vehicleModel,
+          preferredExtColor: sale.preferredExtColor,
         },
       }));
     } catch (error) {
@@ -288,6 +367,40 @@ export default function PaymentFormPage() {
     }
   };
 
+  const modelOptions: SearchSelectOption<VehicleModel>[] = useMemo(
+    () =>
+      vehicleModels.map((m) => ({
+        value: m.id,
+        label: `${m.brand} ${m.model}${m.variant ? ` ${m.variant}` : ''}`,
+        description: `ปี ${m.year} • ราคา ฿${Number(m.price).toLocaleString()}`,
+        data: m,
+      })),
+    [vehicleModels]
+  );
+
+  const handleReservationChange = (field: keyof ReservationFields, value: string | number) => {
+    setReservation((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handleModelSelect = (value: string, option?: SearchSelectOption<VehicleModel>) => {
+    setReservation((prev) => ({
+      ...prev,
+      vehicleModelId: value,
+      totalAmount: option?.data ? Number(option.data.price) || prev.totalAmount : prev.totalAmount,
+    }));
+    setErrors((prev) => ({ ...prev, vehicleModelId: '' }));
+    setColorSuggestions({ exteriorColors: [], interiorColors: [] });
+    if (value) {
+      stockService
+        .getModelColors(value)
+        .then(setColorSuggestions)
+        .catch((error) => console.error('Error loading model colors:', error));
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('th-TH', {
       style: 'currency',
@@ -302,8 +415,19 @@ export default function PaymentFormPage() {
       newErrors.saleId = 'กรุณาเลือกการขาย';
     }
 
-    if (paymentMode === 'miscellaneous' && !formData.customerId) {
+    if (paymentMode !== 'sale' && !formData.customerId) {
       newErrors.customerId = 'กรุณาเลือกลูกค้า';
+    }
+
+    if (paymentMode === 'reservation') {
+      if (!reservation.vehicleModelId) newErrors.vehicleModelId = 'กรุณาเลือกรุ่นรถที่จอง';
+      if (!reservation.preferredExtColor.trim()) {
+        newErrors.preferredExtColor = 'กรุณาระบุสีภายนอกที่จอง';
+      }
+      if (reservation.totalAmount <= 0) newErrors.totalAmount = 'กรุณาระบุราคารถ';
+      if (reservation.totalAmount > 0 && formData.amount > reservation.totalAmount) {
+        newErrors.amount = 'ยอดเงินจองต้องไม่เกินราคารถ';
+      }
     }
 
     if (paymentMode === 'miscellaneous' && !formData.description?.trim()) {
@@ -338,6 +462,38 @@ export default function PaymentFormPage() {
     }
 
     setSaving(true);
+
+    if (paymentMode === 'reservation') {
+      await executeQuery(
+        paymentService
+          .createReservationDeposit({
+            customerId: formData.customerId,
+            vehicleModelId: reservation.vehicleModelId,
+            preferredExtColor: reservation.preferredExtColor.trim(),
+            preferredIntColor: reservation.preferredIntColor.trim() || undefined,
+            totalAmount: reservation.totalAmount,
+            depositAmount: formData.amount,
+            paymentDate: formData.paymentDate,
+            paymentMethod: formData.paymentMethod,
+            referenceNumber: formData.referenceNumber || undefined,
+            receivingBank: formData.receivingBankName || formData.receivingBank || undefined,
+            receivingBankName: formData.receivingBankName || undefined,
+            receivingAccountNumber: formData.receivingAccountNumber || undefined,
+            receivingBranch: formData.receivingBranch || undefined,
+            notes: formData.description.trim() || undefined,
+          })
+          .then((payment) => {
+            addToast(
+              `บันทึกการจอง ${payment.sale?.saleNumber ?? ''} และรับเงินจองสำเร็จ`,
+              'success'
+            );
+            navigate(`/payments/${payment.id}`);
+          })
+      );
+      setSaving(false);
+      return;
+    }
+
     const createData: CreatePaymentData = {
       customerId: formData.customerId,
       amount: formData.amount,
@@ -380,7 +536,12 @@ export default function PaymentFormPage() {
     }
   };
 
-  const currentPaymentTypeOptions = paymentMode === 'sale' ? SALE_PAYMENT_TYPE_OPTIONS : MISC_PAYMENT_TYPE_OPTIONS;
+  const currentPaymentTypeOptions =
+    paymentMode === 'sale'
+      ? SALE_PAYMENT_TYPE_OPTIONS
+      : paymentMode === 'reservation'
+        ? SALE_PAYMENT_TYPE_OPTIONS.filter((o) => o.value === 'DEPOSIT')
+        : MISC_PAYMENT_TYPE_OPTIONS;
 
   if (loading) {
     return (
@@ -417,7 +578,7 @@ export default function PaymentFormPage() {
                 <Receipt className="h-5 w-5 mr-2 text-blue-600" />
                 ประเภทการบันทึก
               </h2>
-              <div className="flex gap-4">
+              <div className="flex flex-col md:flex-row gap-4">
                 <button
                   type="button"
                   onClick={() => setPaymentMode('sale')}
@@ -442,6 +603,22 @@ export default function PaymentFormPage() {
                   <div className="font-medium">รายการทั่วไป</div>
                   <div className="text-sm text-gray-500">บันทึกรายรับทั่วไปที่ไม่เกี่ยวกับการขาย</div>
                 </button>
+                {canReserve && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('reservation')}
+                    className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${paymentMode === 'reservation'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                  >
+                    <Car className="h-6 w-6 mx-auto mb-2" />
+                    <div className="font-medium">จองรถ (ยังไม่ระบุ VIN)</div>
+                    <div className="text-sm text-gray-500">
+                      เลือกรุ่น + สี แล้วรับเงินจอง — ผูก VIN ภายหลัง
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -482,16 +659,24 @@ export default function PaymentFormPage() {
                     <p className="font-medium">{saleInfo.customer.name}</p>
                     <p className="text-sm text-gray-500">{saleInfo.customer.code}</p>
                   </div>
-                  {saleInfo.stock && (
-                    <div className="md:col-span-2">
-                      <p className="text-sm text-gray-500">รถยนต์</p>
-                      <p className="font-medium">
-                        {saleInfo.stock.vehicleModel.brand} {saleInfo.stock.vehicleModel.model}
-                        {saleInfo.stock.vehicleModel.variant && ` ${saleInfo.stock.vehicleModel.variant}`}
-                      </p>
-                      <p className="text-sm text-gray-500">VIN: {saleInfo.stock.vin}</p>
-                    </div>
-                  )}
+                  {(() => {
+                    const car = describeSale(saleInfo);
+                    if (!car.name && !saleInfo.stock) return null;
+                    return (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-500">รถยนต์</p>
+                        <p className="font-medium">
+                          {car.name || '-'}
+                          {car.color && <span className="text-gray-700"> • สี {car.color}</span>}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {saleInfo.stock?.vin
+                            ? `VIN: ${saleInfo.stock.vin}`
+                            : 'ยังไม่ระบุ VIN (จองรุ่น/สี)'}
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <div>
                     <p className="text-sm text-gray-500">ยอดรวม</p>
                     <p className="font-semibold text-gray-900">{formatCurrency(saleInfo.totalAmount)}</p>
@@ -509,8 +694,8 @@ export default function PaymentFormPage() {
             </div>
           )}
 
-          {/* Customer Selection (for miscellaneous mode) */}
-          {paymentMode === 'miscellaneous' && (
+          {/* Customer Selection (miscellaneous + จองรถ) */}
+          {paymentMode !== 'sale' && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <User className="h-5 w-5 mr-2 text-blue-600" />
@@ -548,6 +733,7 @@ export default function PaymentFormPage() {
               )}
 
               {/* Description for miscellaneous payments */}
+              {paymentMode === 'miscellaneous' && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   รายละเอียด <span className="text-red-500">*</span>
@@ -564,6 +750,130 @@ export default function PaymentFormPage() {
                   <p className="text-sm text-red-500 mt-1">{errors.description}</p>
                 )}
               </div>
+              )}
+            </div>
+          )}
+
+          {/* Booked car (จองรถ mode): model + color now, VIN assigned later */}
+          {paymentMode === 'reservation' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <Car className="h-5 w-5 mr-2 text-blue-600" />
+                รถที่จอง
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <SearchSelect<VehicleModel>
+                    value={reservation.vehicleModelId}
+                    onChange={handleModelSelect}
+                    options={modelOptions}
+                    label="รุ่นรถ"
+                    required
+                    placeholder="ค้นหารุ่นรถ..."
+                    error={errors.vehicleModelId}
+                    emptyMessage="ไม่พบรุ่นรถ"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="reservation-ext-color"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    สีภายนอก <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="reservation-ext-color"
+                    type="text"
+                    list="reservation-ext-colors"
+                    value={reservation.preferredExtColor}
+                    onChange={(e) => handleReservationChange('preferredExtColor', e.target.value)}
+                    placeholder="เลือกหรือพิมพ์สี เช่น ขาว"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.preferredExtColor ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                  />
+                  <datalist id="reservation-ext-colors">
+                    {colorSuggestions.exteriorColors.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                  {colorSuggestions.exteriorColors.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {colorSuggestions.exteriorColors.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => handleReservationChange('preferredExtColor', c)}
+                          className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${reservation.preferredExtColor === c
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 text-gray-700 hover:border-blue-300'
+                            }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {errors.preferredExtColor && (
+                    <p className="text-sm text-red-500 mt-1">{errors.preferredExtColor}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="reservation-int-color"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    สีภายใน
+                  </label>
+                  <input
+                    id="reservation-int-color"
+                    type="text"
+                    list="reservation-int-colors"
+                    value={reservation.preferredIntColor}
+                    onChange={(e) => handleReservationChange('preferredIntColor', e.target.value)}
+                    placeholder="ไม่บังคับ"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  <datalist id="reservation-int-colors">
+                    {colorSuggestions.interiorColors.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label
+                    htmlFor="reservation-total-amount"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    ราคารถ (บาท) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <input
+                      id="reservation-total-amount"
+                      type="number"
+                      value={reservation.totalAmount || ''}
+                      onChange={(e) =>
+                        handleReservationChange('totalAmount', Number.parseFloat(e.target.value) || 0)
+                      }
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.totalAmount ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  {errors.totalAmount ? (
+                    <p className="text-sm text-red-500 mt-1">{errors.totalAmount}</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      ตั้งจากราคารุ่นรถ แก้ไขได้ • ระบบจะสร้างการขายแบบจอง (ยังไม่ผูก VIN) ซึ่งนับใน
+                      "ยอดจอง" ของรายงานสต็อกประจำวัน จนกว่าจะผูก VIN ที่หน้ารายละเอียดการขาย
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -578,7 +888,8 @@ export default function PaymentFormPage() {
               {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  จำนวนเงิน (บาท) <span className="text-red-500">*</span>
+                  {paymentMode === 'reservation' ? 'ยอดเงินจอง (บาท)' : 'จำนวนเงิน (บาท)'}{' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -620,7 +931,8 @@ export default function PaymentFormPage() {
                 <select
                   value={formData.paymentType}
                   onChange={(e) => handleInputChange('paymentType', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={paymentMode === 'reservation'}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                 >
                   {currentPaymentTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -795,8 +1107,8 @@ export default function PaymentFormPage() {
                 </div>
               )}
 
-              {/* Notes (for sale mode, description is already captured for misc mode) */}
-              {paymentMode === 'sale' && (
+              {/* Notes (sale + จองรถ; misc mode captures its description above) */}
+              {paymentMode !== 'miscellaneous' && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     หมายเหตุ
@@ -824,11 +1136,15 @@ export default function PaymentFormPage() {
             </button>
             <button
               type="submit"
-              disabled={saving || (paymentMode === 'sale' && !formData.saleId) || (paymentMode === 'miscellaneous' && !formData.customerId)}
+              disabled={saving || (paymentMode === 'sale' && !formData.saleId) || (paymentMode !== 'sale' && !formData.customerId)}
               className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="h-5 w-5 mr-2" />
-              {saving ? 'กำลังบันทึก...' : 'บันทึกการชำระเงิน'}
+              {saving
+                ? 'กำลังบันทึก...'
+                : paymentMode === 'reservation'
+                  ? 'บันทึกการจองและรับเงินจอง'
+                  : 'บันทึกการชำระเงิน'}
             </button>
           </div>
         </form>
