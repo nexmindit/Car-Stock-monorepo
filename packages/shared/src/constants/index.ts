@@ -403,6 +403,45 @@ export const PERMISSIONS = {
 export type Permission = keyof typeof PERMISSIONS;
 
 // ============================================
+// Selling DEMO cars (ตั้งค่า → การขายรถ Demo)
+// ============================================
+
+export type RoleValue = keyof typeof ROLE_LABELS;
+
+/** Company-wide switch + which roles may sell a stock unit that is on DEMO duty. */
+export interface DemoSalePolicy {
+  allowDemoSale: boolean;
+  demoSaleRoles: readonly RoleValue[];
+}
+
+/** Defaults keep the pre-setting behaviour: everyone who can create a sale can sell demo cars. */
+export const DEFAULT_DEMO_SALE_ROLES: readonly RoleValue[] = PERMISSIONS.SALE_CREATE;
+
+export const DEFAULT_DEMO_SALE_POLICY: DemoSalePolicy = {
+  allowDemoSale: true,
+  demoSaleRoles: DEFAULT_DEMO_SALE_ROLES,
+};
+
+export const DEMO_SALE_DISABLED_MESSAGE = 'ระบบปิดการขายรถ Demo';
+export const DEMO_SALE_ROLE_DENIED_MESSAGE = 'ไม่มีสิทธิ์ขายรถ Demo';
+
+/** Why `role` may not sell a DEMO unit under `policy`, or null when it may. */
+export function demoSaleBlockReason(
+  policy: DemoSalePolicy,
+  role: string | null | undefined
+): string | null {
+  if (!policy.allowDemoSale) return DEMO_SALE_DISABLED_MESSAGE;
+  if (!role || !(policy.demoSaleRoles as readonly string[]).includes(role)) {
+    return DEMO_SALE_ROLE_DENIED_MESSAGE;
+  }
+  return null;
+}
+
+export function canSellDemoStock(policy: DemoSalePolicy, role: string | null | undefined): boolean {
+  return demoSaleBlockReason(policy, role) === null;
+}
+
+// ============================================
 // Vehicle card (การ์ดรถยนต์) print layout
 // ============================================
 

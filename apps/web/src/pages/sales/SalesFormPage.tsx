@@ -15,6 +15,8 @@ import { customerService, type Customer } from '../../services/customer.service'
 import { stockService, type Stock } from '../../services/stock.service';
 import { vehicleService, type VehicleModel } from '../../services/vehicle.service';
 import { MainLayout } from '../../components/layout';
+import { useToast } from '../../components/toast';
+import { useDemoSaleBlockReason } from '../../hooks/useDemoSale';
 import { DatePicker } from '../../components/ui/date-picker';
 import {
   ArrowLeft,
@@ -90,6 +92,9 @@ export default function SalesFormPage() {
     { onSuccess: () => navigate('/sales') }
   );
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
+  const { addToast } = useToast();
+  // Non-null when this user may not sell DEMO cars (Settings → การขายรถ Demo).
+  const demoBlockReason = useDemoSaleBlockReason();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -247,14 +252,18 @@ export default function SalesFormPage() {
   const stockOptions: SearchSelectOption<Stock>[] = useMemo(() => {
     const toOption = (stock: Stock): SearchSelectOption<Stock> => {
       const isDemo = stock.status === 'DEMO';
+      const demoBlocked = isDemo && demoBlockReason !== null;
       const pricePart = stock.expectedSalePrice
         ? ` • ราคา: ฿${stock.expectedSalePrice.toLocaleString()}`
         : '';
       return {
         value: stock.id,
         label: `${stock.vehicleModel.brand} ${stock.vehicleModel.model} - VIN: ${stock.vin.slice(-8)} (${stock.exteriorColor})${isDemo ? ' · รถ Demo' : ''}`,
-        description: `VIN: ${stock.vin}${isDemo ? ' · รถ Demo' : ''}${pricePart}`,
+        description: demoBlocked
+          ? `VIN: ${stock.vin} · รถ Demo — ${demoBlockReason}`
+          : `VIN: ${stock.vin}${isDemo ? ' · รถ Demo' : ''}${pricePart}`,
         data: stock,
+        disabled: demoBlocked,
       };
     };
     // AVAILABLE first, then DEMO (API already prefers this order)
@@ -270,7 +279,7 @@ export default function SalesFormPage() {
       options.unshift(toOption(selectedStock));
     }
     return options;
-  }, [availableStocks, selectedStock]);
+  }, [availableStocks, selectedStock, demoBlockReason]);
 
   const filterStockOption = useCallback((option: SearchSelectOption<Stock>, query: string) => {
     const q = query.toLowerCase().trim();
@@ -289,6 +298,12 @@ export default function SalesFormPage() {
 
   const handleStockSelect = (value: string, option?: SearchSelectOption<Stock>) => {
     const stock = option?.data || null;
+
+    // Belt-and-suspenders: the option is disabled, and the API re-checks on save
+    if (stock?.status === 'DEMO' && demoBlockReason) {
+      addToast(demoBlockReason, 'warning');
+      return;
+    }
 
     setSelectedStock(stock);
 
@@ -636,6 +651,7 @@ export default function SalesFormPage() {
                   onChange={handleStockSelect}
                   options={stockOptions}
                   filterFn={filterStockOption}
+                  onDisabledSelect={() => demoBlockReason && addToast(demoBlockReason, 'warning')}
                   label={
                     saleType === 'RESERVATION_SALE'
                       ? 'เลือก / เปลี่ยน Stock (รถในสต็อก)'

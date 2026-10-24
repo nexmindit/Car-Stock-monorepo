@@ -2,6 +2,8 @@ import { db } from '../../lib/db';
 import { NUMBER_PREFIXES } from '@car-stock/shared/constants';
 import { authService } from '../auth/auth.service';
 import { NotFoundError, ForbiddenError, BadRequestError, ConflictError } from '../../lib/errors';
+import { checkStockSellable, logDemoStockSold } from '../sales/demo-sale.service';
+import type { StockStatus } from '@prisma/client';
 
 export class QuotationsService {
   /**
@@ -559,6 +561,22 @@ export class QuotationsService {
       throw new BadRequestError('Can only convert accepted quotations');
     }
 
+    // A unit picked at conversion must be sellable (AVAILABLE, or DEMO when the
+    // setting allows this role); it is claimed atomically inside the transaction.
+    let pickedStockStatus: StockStatus | undefined;
+    let pickedFromDemo = false;
+    if (data.stockId) {
+      const stock = await db.stock.findFirst({
+        where: { id: data.stockId, deletedAt: null },
+        select: { status: true },
+      });
+      if (!stock) {
+        throw new NotFoundError('Stock');
+      }
+      pickedFromDemo = (await checkStockSellable(stock.status, currentUser.role)).isDemo;
+      pickedStockStatus = stock.status;
+    }
+
     // Generate sale number atomically. Mirrors the fixed generator in
     // `sales.service.ts#generateSaleNumber` — serializable transaction with an
     // updateMany+create fallback so concurrent conversions cannot produce
@@ -695,12 +713,24 @@ export class QuotationsService {
         },
       });
 
-      // If stock is assigned, reserve it
+      // If stock is assigned, reserve it — only if still in the status checked above
       if (data.stockId) {
-        await tx.stock.update({
-          where: { id: data.stockId },
+        const reserved = await tx.stock.updateMany({
+          where: { id: data.stockId, status: pickedStockStatus, deletedAt: null },
           data: { status: 'RESERVED' },
         });
+        if (reserved.count === 0) {
+          throw new BadRequestError('Stock is not available');
+        }
+        if (pickedFromDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: data.stockId,
+            saleId: sale.id,
+            saleNumber: sale.saleNumber,
+            via: 'CONVERT_QUOTATION',
+          });
+        }
       }
 
       await tx.saleHistory.create({

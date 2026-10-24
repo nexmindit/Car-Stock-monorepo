@@ -729,7 +729,8 @@ export class StockService {
 
   /**
    * Stock units shown when picking a car for a sale.
-   * Includes DEMO: demo units are sellable too (the picker badges them).
+   * Includes DEMO: demo units are sellable when Settings → การขายรถ Demo allows the role
+   * (the picker badges them and disables them otherwise; the write path re-checks).
    */
   async getAvailableStock() {
     const stocks = await db.stock.findMany({

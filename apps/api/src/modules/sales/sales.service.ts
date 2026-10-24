@@ -17,6 +17,7 @@ import {
   recalcRemaining,
   shouldRecalcRemaining,
 } from './sales-remaining';
+import { checkStockSellable, logDemoStockSold } from './demo-sale.service';
 
 const toNumber = (val: Decimal | number | null | undefined): number => {
   if (val === null || val === undefined) return 0;
@@ -29,10 +30,6 @@ const toNumberOrNull = (val: Decimal | number | null | undefined): number | null
   if (typeof val === 'number') return val;
   return Number(val);
 };
-
-/** A car can be sold from stock or straight off demo duty (dealers sell demo units). */
-const SELLABLE_STOCK_STATUSES: StockStatus[] = ['AVAILABLE', 'DEMO'];
-const isSellableStockStatus = (status: StockStatus) => SELLABLE_STOCK_STATUSES.includes(status);
 
 /**
  * Domain rule: when a stock unit is linked, its model is the only allowed
@@ -403,6 +400,8 @@ export class SalesService {
     // Check if stock exists (if provided) — filter soft-deleted.
     // When a unit is linked, stock.vehicleModelId is the only allowed model.
     let createStockNotes: string | null | undefined;
+    let createStockStatus: StockStatus | undefined;
+    let createFromDemo = false;
     if (validated.stockId) {
       const stock = await db.stock.findFirst({
         where: { id: validated.stockId, deletedAt: null },
@@ -412,9 +411,8 @@ export class SalesService {
       if (!stock) {
         throw new NotFoundError('Stock');
       }
-      if (!isSellableStockStatus(stock.status)) {
-        throw new BadRequestError('Stock is not available');
-      }
+      createFromDemo = (await checkStockSellable(stock.status, currentUser.role)).isDemo;
+      createStockStatus = stock.status;
 
       validated.vehicleModelId =
         resolveSaleVehicleModelId({
@@ -532,10 +530,10 @@ export class SalesService {
         await createFinanceLines(tx, created.id, customLines);
       }
 
-      // Reserve stock only if still AVAILABLE (atomic vs concurrent sales)
+      // Reserve stock only if still in the status we checked (atomic vs concurrent sales)
       if (validated.stockId) {
         const reserved = await tx.stock.updateMany({
-          where: { id: validated.stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+          where: { id: validated.stockId, status: createStockStatus, deletedAt: null },
           data: {
             status: 'RESERVED',
             ...(createStockNotes !== undefined ? { notes: createStockNotes } : {}),
@@ -543,6 +541,15 @@ export class SalesService {
         });
         if (reserved.count === 0) {
           throw new BadRequestError('Stock is not available');
+        }
+        if (createFromDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: validated.stockId,
+            saleId: created.id,
+            saleNumber: created.saleNumber,
+            via: 'CREATE_SALE',
+          });
         }
       }
 
@@ -876,17 +883,28 @@ export class SalesService {
         if (!newStock) {
           throw new NotFoundError('Stock');
         }
-        if (!isSellableStockStatus(newStock.status)) {
-          throw new BadRequestError('รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)');
-        }
+        const { isDemo } = await checkStockSellable(
+          newStock.status,
+          currentUser.role,
+          'รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)'
+        );
 
-        // Atomic claim: only succeeds if still AVAILABLE
+        // Atomic claim: only succeeds if still in the status checked above
         const claimed = await tx.stock.updateMany({
-          where: { id: incomingStockId!, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+          where: { id: incomingStockId!, status: newStock.status, deletedAt: null },
           data: { status: newStockStatus! },
         });
         if (claimed.count === 0) {
           throw new BadRequestError('รถคันนี้ไม่พร้อมขาย (ไม่ได้สถานะ AVAILABLE)');
+        }
+        if (isDemo) {
+          await logDemoStockSold(tx, {
+            userId: currentUser.id,
+            stockId: incomingStockId!,
+            saleId: existingSale.id,
+            saleNumber: existingSale.saleNumber,
+            via: 'UPDATE_SALE',
+          });
         }
 
         if (existingSale.stockId && existingSale.stockId !== incomingStockId) {
@@ -1263,18 +1281,25 @@ export class SalesService {
       if (!newStock) {
         throw new NotFoundError('Stock');
       }
-      if (!isSellableStockStatus(newStock.status)) {
-        throw new BadRequestError('Stock is not available');
-      }
+      const { isDemo } = await checkStockSellable(newStock.status, currentUser.role);
 
       const sharedNotes = pickSharedNotes(existingSale.notes, newStock.notes);
 
       const claimed = await tx.stock.updateMany({
-        where: { id: stockId, status: { in: SELLABLE_STOCK_STATUSES }, deletedAt: null },
+        where: { id: stockId, status: newStock.status, deletedAt: null },
         data: { status: stockStatus, notes: sharedNotes },
       });
       if (claimed.count === 0) {
         throw new BadRequestError('Stock is not available');
+      }
+      if (isDemo) {
+        await logDemoStockSold(tx, {
+          userId: currentUser.id,
+          stockId,
+          saleId: existingSale.id,
+          saleNumber: existingSale.saleNumber,
+          via: existingSale.stockId ? 'CHANGE_STOCK' : 'ASSIGN_STOCK',
+        });
       }
 
       if (existingSale.stockId && existingSale.stockId !== stockId) {

@@ -112,7 +112,7 @@ export const stockRoutes = new Elysia({ prefix: '/stock' })
         tags: ['Stock'],
         summary: 'Get available stock',
         description:
-          'Stock list for sales picker: AVAILABLE + DEMO (both sellable)',
+          'Stock list for sales picker: AVAILABLE + DEMO (DEMO sellable only when the demo-sale setting allows the role)',
       },
     }
   )

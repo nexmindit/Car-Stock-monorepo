@@ -1,15 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '../../components/layout';
 import { Save, Upload, Building, Settings } from 'lucide-react';
+import {
+    DEFAULT_DEMO_SALE_POLICY,
+    ROLE_LABELS,
+    type RoleValue,
+} from '@car-stock/shared/constants';
 import { settingsService } from '../../services/settings.service';
 import BankAccountsSection from './BankAccountsSection';
 import VehicleTypesSection from './VehicleTypesSection';
 import { usePermission } from '../../hooks/usePermission';
 import { useMutationHandler, useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
+import { useCompany } from '../../contexts/CompanyContext';
+
+const DEMO_SALE_ROLE_OPTIONS = Object.keys(ROLE_LABELS) as RoleValue[];
 
 export default function SettingsPage() {
     const { addToast } = useToast();
+    const { refreshSettings } = useCompany();
     const { hasPermission } = usePermission();
     // Company + bank sections are ADMIN-only (SETTINGS_VIEW); VEHICLE_TYPE_MANAGE roles
     // reach this page for the ประเภทรถ section alone.
@@ -33,6 +42,11 @@ export default function SettingsPage() {
         website: '',
         logo: '',
     });
+    // Settings → การขายรถ Demo (saved with the company form)
+    const [allowDemoSale, setAllowDemoSale] = useState(DEFAULT_DEMO_SALE_POLICY.allowDemoSale);
+    const [demoSaleRoles, setDemoSaleRoles] = useState<RoleValue[]>([
+        ...DEFAULT_DEMO_SALE_POLICY.demoSaleRoles,
+    ]);
 
     // Track mount status so async callbacks (FileReader.onloadend) cannot
     // touch state after the component unmounts.
@@ -66,6 +80,12 @@ export default function SettingsPage() {
                         website: response.data.website || '',
                         logo: response.data.logo || '',
                     });
+                    setAllowDemoSale(
+                        response.data.allowDemoSale ?? DEFAULT_DEMO_SALE_POLICY.allowDemoSale
+                    );
+                    setDemoSaleRoles([
+                        ...(response.data.demoSaleRoles ?? DEFAULT_DEMO_SALE_POLICY.demoSaleRoles),
+                    ]);
                 }
             })
         );
@@ -75,6 +95,14 @@ export default function SettingsPage() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const toggleDemoSaleRole = (role: RoleValue, checked: boolean) => {
+        setDemoSaleRoles(prev =>
+            checked
+                ? DEMO_SALE_ROLE_OPTIONS.filter(r => r === role || prev.includes(r))
+                : prev.filter(r => r !== role)
+        );
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,8 +127,12 @@ export default function SettingsPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
-        await executeSave(settingsService.updateSettings(formData));
+        const saved = await executeSave(
+            settingsService.updateSettings({ ...formData, allowDemoSale, demoSaleRoles })
+        );
         setSaving(false);
+        // Sales pickers read the demo-sale policy from CompanyContext
+        if (saved) await refreshSettings();
     };
 
     if (!canCompany) {
@@ -247,6 +279,62 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     </div>
+                </section>
+
+                {/* Selling DEMO cars */}
+                <section className="bg-white border border-gray-200 rounded-xl p-6 lg:p-8 space-y-6">
+                    <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">การขายรถ Demo</h2>
+
+                    <label className="flex items-start justify-between gap-4 cursor-pointer">
+                        <div>
+                            <div className="text-sm font-medium text-gray-900">อนุญาตขายรถ Demo</div>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                                เปิดเพื่อให้เลือกรถสถานะ "รถ Demo" ในการขาย / ผูกรถกับการขายได้
+                            </p>
+                        </div>
+                        <span className="relative inline-flex shrink-0 mt-0.5">
+                            <input
+                                type="checkbox"
+                                role="switch"
+                                aria-checked={allowDemoSale}
+                                className="peer sr-only"
+                                checked={allowDemoSale}
+                                onChange={e => setAllowDemoSale(e.target.checked)}
+                            />
+                            <span className="h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-blue-600 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2" />
+                            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+                        </span>
+                    </label>
+
+                    <fieldset disabled={!allowDemoSale} className="disabled:opacity-50">
+                        <legend className="block text-sm font-medium text-gray-700 mb-2">
+                            ตำแหน่งที่ขายรถ Demo ได้
+                        </legend>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {DEMO_SALE_ROLE_OPTIONS.map(role => (
+                                <label
+                                    key={role}
+                                    className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 cursor-pointer hover:bg-gray-50"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        checked={demoSaleRoles.includes(role)}
+                                        onChange={e => toggleDemoSaleRole(role, e.target.checked)}
+                                    />
+                                    {ROLE_LABELS[role]}
+                                </label>
+                            ))}
+                        </div>
+                        {allowDemoSale && demoSaleRoles.length === 0 && (
+                            <p className="text-sm text-amber-600 mt-2">
+                                ยังไม่ได้เลือกตำแหน่งใด — จะยังไม่มีใครขายรถ Demo ได้
+                            </p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-2">
+                            ตำแหน่งที่ไม่มีสิทธิ์สร้างการขายอยู่แล้ว ติ๊กไว้ก็ยังขายไม่ได้
+                        </p>
+                    </fieldset>
                 </section>
 
                 {/* Action Buttons */}

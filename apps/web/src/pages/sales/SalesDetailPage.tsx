@@ -28,6 +28,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FinanceSheet, type FinanceSheetValue } from '../../components/finance/FinanceSheet';
 import { MainLayout } from '../../components/layout';
 import { useToast } from '../../components/toast';
+import { useDemoSaleBlockReason } from '../../hooks/useDemoSale';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { usePermission } from '../../hooks/usePermission';
 import { api } from '../../lib/api';
@@ -216,6 +217,8 @@ export default function SalesDetailPage() {
   const canDiscount = hasPermission('SALE_DISCOUNT');
 
   const { addToast } = useToast();
+  // Non-null when this user may not sell DEMO cars (Settings → การขายรถ Demo).
+  const demoBlockReason = useDemoSaleBlockReason();
   const { execute: executeQuery } = useErrorHandler({ showToast: true });
 
   const [sale, setSale] = useState<Sale | null>(null);
@@ -324,6 +327,12 @@ export default function SalesDetailPage() {
 
   const handleAssignStock = async () => {
     if (!sale || !selectedStockId) return;
+
+    const picked = availableStocks.find((s) => s.id === selectedStockId);
+    if (picked?.status === 'DEMO' && demoBlockReason) {
+      addToast(demoBlockReason, 'warning');
+      return;
+    }
 
     setAssigningStock(true);
     await executeQuery(
@@ -582,12 +591,17 @@ export default function SalesDetailPage() {
                 <div className="space-y-2">
                   {availableStocks.map((stock) => {
                     const isDemo = stock.status === 'DEMO';
-                    const isSelected = selectedStockId === stock.id;
+                    const demoBlocked = isDemo && demoBlockReason !== null;
+                    const isSelected = selectedStockId === stock.id && !demoBlocked;
                     return (
                       <label
                         key={stock.id}
-                        className={`flex items-center p-3 border rounded-lg cursor-pointer ${
-                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                        className={`flex items-center p-3 border rounded-lg ${
+                          demoBlocked
+                            ? 'cursor-not-allowed border-purple-200 bg-purple-50/40 opacity-80'
+                            : isSelected
+                              ? 'cursor-pointer border-blue-500 bg-blue-50'
+                              : 'cursor-pointer border-gray-200 hover:bg-gray-50'
                         }`}
                       >
                         <input
@@ -595,8 +609,12 @@ export default function SalesDetailPage() {
                           name="stockId"
                           value={stock.id}
                           checked={isSelected}
-                          onChange={(e) => setSelectedStockId(e.target.value)}
-                          className="mr-3"
+                          disabled={demoBlocked}
+                          onChange={(e) => {
+                            if (demoBlocked) return;
+                            setSelectedStockId(e.target.value);
+                          }}
+                          className="mr-3 disabled:cursor-not-allowed"
                         />
                         <div className="flex-1">
                           <div className="font-medium flex items-center gap-2 flex-wrap">
@@ -609,6 +627,7 @@ export default function SalesDetailPage() {
                           </div>
                           <div className="text-sm text-gray-700">
                             VIN: {stock.vin} | สี: {stock.exteriorColor}
+                            {demoBlocked ? ` · เลือกขายไม่ได้ (${demoBlockReason})` : ''}
                           </div>
                         </div>
                       </label>

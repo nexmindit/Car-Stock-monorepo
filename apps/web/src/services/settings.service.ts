@@ -1,3 +1,4 @@
+import type { RoleValue } from '@car-stock/shared/constants';
 import type { VehicleCardLayout } from '@car-stock/shared/schemas';
 import { api } from '../lib/api';
 
@@ -14,6 +15,9 @@ export interface CompanySettings {
   email: string;
   website: string;
   logo: string;
+  /** Settings → การขายรถ Demo */
+  allowDemoSale?: boolean;
+  demoSaleRoles?: RoleValue[];
   createdAt?: string;
   updatedAt?: string;
 }

@@ -807,6 +807,20 @@ export const VehicleTypeFilterSchema = z.object({
 });
 
 // ============================================================================
+// Company settings: selling DEMO cars (both optional so older clients can still save)
+// ============================================================================
+
+export const DemoSaleSettingsSchema = z.object({
+  allowDemoSale: z.boolean().optional(),
+  demoSaleRoles: z
+    .array(RoleSchema)
+    .transform((roles) => [...new Set(roles)])
+    .optional(),
+});
+
+export type DemoSaleSettingsInput = z.infer<typeof DemoSaleSettingsSchema>;
+
+// ============================================================================
 // Vehicle card print layout (positions in mm from the paper's top-left)
 // ============================================================================
 

@@ -617,6 +617,9 @@ model CompanySettings {
   email         String?
   website       String?
   logo          String?  @db.Text
+  /// Selling DEMO stock: company switch + roles allowed (defaults = SALE_CREATE roles)
+  allowDemoSale Boolean  @default(true) @map("allow_demo_sale")
+  demoSaleRoles Role[]   @default([ADMIN, SALES_MANAGER, SALES_STAFF, ACCOUNTANT]) @map("demo_sale_roles")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
