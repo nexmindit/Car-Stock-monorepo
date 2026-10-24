@@ -91,4 +91,16 @@ describe('temporary-receipt form layout — CARSTOCK01-23 pinfeed tear-off', () 
     expect(overlaySource).toContain('left: 152mm'); // .f-bank-account
     expect(ovl).not.toMatch(/padding\s*:/);
   });
+
+  test('overlay item lines wrap inside the 130mm รายการ box instead of running off the page', () => {
+    const items = cssBlock(overlaySource, '.f-items');
+    // shared block: .f-total-paid, .f-total-late, .f-total-discount, .f-grand-total { left; width }
+    const totals = overlaySource.match(/\.f-grand-total\s*\{([^}]*left[^}]*)\}/)?.[1] ?? '';
+    const itemsRightMm = toMm(cssDecl(items, 'left')) + toMm(cssDecl(items, 'width'));
+    const amountsRightMm = toMm(cssDecl(totals, 'left')) + toMm(cssDecl(totals, 'width'));
+
+    // .f sets nowrap on every field; without this a long booking note runs off to the right
+    expect(cssDecl(cssBlock(overlaySource, '.item-desc'), 'white-space')).toBe('normal');
+    expect(itemsRightMm).toBeLessThan(amountsRightMm);
+  });
 });
