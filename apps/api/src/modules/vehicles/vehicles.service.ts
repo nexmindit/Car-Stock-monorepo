@@ -3,6 +3,8 @@ import type { Prisma } from '@prisma/client';
 import { db } from '../../lib/db';
 import { AppError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
 import { authService } from '../auth/auth.service';
+import { isVehicleTypeChange } from '../vehicle-types/vehicle-types.helpers';
+import { vehicleTypesService } from '../vehicle-types/vehicle-types.service';
 
 export function vehicleModelDeleteBlocked(liveStockCount: number, salesCount: number): boolean {
   return liveStockCount > 0 || salesCount > 0;
@@ -144,6 +146,7 @@ export class VehiclesService {
     }
 
     const validated = CreateVehicleModelSchema.parse(data);
+    await vehicleTypesService.assertUsable(validated.type);
 
     // Check for duplicate (brand + model + variant + year)
     const existing = await db.vehicleModel.findFirst({
@@ -200,11 +203,16 @@ export class VehiclesService {
     // Check if vehicle exists
     const existingVehicle = await db.vehicleModel.findUnique({
       where: { id },
-      select: { id: true, brand: true, model: true, variant: true, year: true },
+      select: { id: true, brand: true, model: true, variant: true, year: true, type: true },
     });
 
     if (!existingVehicle) {
       throw new NotFoundError('Vehicle model');
+    }
+
+    // Only a newly picked type must be active — re-saving a model on a retired type is fine.
+    if (validated.type && isVehicleTypeChange(validated.type, existingVehicle.type)) {
+      await vehicleTypesService.assertUsable(validated.type);
     }
 
     // Check for duplicate (if updating key fields)

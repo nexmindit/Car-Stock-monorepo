@@ -1,11 +1,10 @@
-import { VehicleTypeSchema } from '@car-stock/shared/schemas';
 import { Elysia, t } from 'elysia';
 import { vehiclesService } from './vehicles.service';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { authService } from '../auth/auth.service';
 
-// Same list as the DB enum — a hand-kept subset here rejected types the form offers.
-const vehicleTypeT = t.Union(VehicleTypeSchema.options.map((v) => t.Literal(v)));
+// Vehicle types are rows in vehicle_types; the service checks the code exists and is active.
+const vehicleTypeT = t.String({ minLength: 1 });
 
 export const vehicleRoutes = new Elysia({ prefix: '/vehicles' })
   // Get all vehicle models
@@ -167,9 +166,7 @@ export const vehicleRoutes = new Elysia({ prefix: '/vehicles' })
         model: t.Optional(t.String({ minLength: 1 })),
         variant: t.Optional(t.String()),
         year: t.Optional(t.Number()),
-        type: t.Optional(
-          vehicleTypeT
-        ),
+        type: t.Optional(vehicleTypeT),
         primaryColor: t.Optional(t.String()),
         secondaryColor: t.Optional(t.String()),
         colorNotes: t.Optional(t.String()),

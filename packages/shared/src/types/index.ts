@@ -11,6 +11,7 @@ import type {
   CreateStockStatusSchema,
   CreateUserSchema,
   CreateVehicleModelSchema,
+  CreateVehicleTypeSchema,
   CustomerSchema,
   CustomerTypeSchema,
   DebtStatusSchema,
@@ -40,6 +41,7 @@ import type {
   UpdateStockSchema,
   UpdateUserSchema,
   UpdateVehicleModelSchema,
+  UpdateVehicleTypeSchema,
   UserSchema,
   UserStatusSchema,
   VehicleModelSchema,
@@ -95,6 +97,18 @@ export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
 export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
 export type CreateVehicleModelInput = z.infer<typeof CreateVehicleModelSchema>;
 export type UpdateVehicleModelInput = z.infer<typeof UpdateVehicleModelSchema>;
+export type CreateVehicleTypeInput = z.input<typeof CreateVehicleTypeSchema>;
+export type UpdateVehicleTypeInput = z.input<typeof UpdateVehicleTypeSchema>;
+
+/** A row of the vehicle_types table (ประเภทรถ). */
+export interface VehicleTypeItem {
+  code: string;
+  nameTh: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 export type CreateStockInput = z.infer<typeof CreateStockSchema>;
 export type UpdateStockInput = z.infer<typeof UpdateStockSchema>;
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;

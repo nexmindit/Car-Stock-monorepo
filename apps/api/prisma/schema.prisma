@@ -72,7 +72,7 @@ model VehicleModel {
   model          String
   variant        String?
   year           Int
-  type           VehicleType
+  type           String
   primaryColor   String?                @map("primary_color")
   secondaryColor String?                @map("secondary_color")
   colorNotes     String?                @map("color_notes")
@@ -89,8 +89,23 @@ model VehicleModel {
   quotations     Quotation[]
   sales          Sale[]
   stocks         Stock[]
+  vehicleType    VehicleType            @relation(fields: [type], references: [code], onUpdate: Cascade, onDelete: Restrict)
 
+  @@index([type])
   @@map("vehicle_models")
+}
+
+/// ประเภทรถ (เก๋ง, กระบะ, มอเตอร์ไซค์ ...) — admins manage the list in Settings.
+model VehicleType {
+  code      String         @id
+  nameTh    String         @map("name_th")
+  sortOrder Int            @default(0) @map("sort_order")
+  isActive  Boolean        @default(true) @map("is_active")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  models    VehicleModel[]
+
+  @@map("vehicle_types")
 }
 
 model Stock {
@@ -484,22 +499,6 @@ enum CustomerType {
 enum SalesType {
   NORMAL_SALES
   FLEET_SALES
-}
-
-enum VehicleType {
-  SEDAN
-  SUV
-  HATCHBACK
-  PICKUP
-  MPV
-  COUPE
-  CONVERTIBLE
-  WAGON
-  VAN
-  TRUCK
-  CROSSOVER
-  EV
-  MOTORCYCLE
 }
 
 enum StockStatus {

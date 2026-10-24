@@ -73,6 +73,8 @@ export interface StockReportItem {
   variant?: string;
   year: number;
   vehicleModelName?: string;
+  /** vehicle_types.code */
+  vehicleType?: string;
   exteriorColor: string;
   interiorColor?: string;
   status: string;
@@ -203,6 +205,8 @@ export interface SalesSummaryItem {
   customerType: string;
   vehicleInfo: string;
   vehicleModelName?: string;
+  /** vehicle_types.code */
+  vehicleType?: string | null;
   vin?: string;
   chassisNumber?: string;
   engineNumber?: string;

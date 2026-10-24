@@ -25,21 +25,25 @@ export const CustomerTypeSchema = z.enum(['INDIVIDUAL', 'COMPANY']);
 
 export const SalesTypeSchema = z.enum(['NORMAL_SALES', 'FLEET_SALES']);
 
-export const VehicleTypeSchema = z.enum([
-  'SEDAN',
-  'SUV',
-  'HATCHBACK',
-  'PICKUP',
-  'MPV',
-  'COUPE',
-  'CONVERTIBLE',
-  'WAGON',
-  'VAN',
-  'TRUCK',
-  'CROSSOVER',
-  'EV',
-  'MOTORCYCLE',
-]);
+// Vehicle types live in the vehicle_types table (admin-managed), so any code is accepted here;
+// the API checks it exists and is active.
+export const VehicleTypeSchema = z.string().min(1);
+
+// Code format for a new vehicle type: uppercase letters, digits and underscores.
+export const VehicleTypeCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9_]{1,30}$/, 'รหัสต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ ไม่เกิน 30 ตัว');
+
+export const CreateVehicleTypeSchema = z.object({
+  code: VehicleTypeCodeSchema,
+  nameTh: z.string().trim().min(1, 'กรุณาระบุชื่อประเภทรถ').max(100),
+  sortOrder: z.number().int().optional().default(0),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const UpdateVehicleTypeSchema = CreateVehicleTypeSchema.omit({ code: true }).partial();
 
 export const StockStatusSchema = z.enum(['AVAILABLE', 'RESERVED', 'PREPARING', 'SOLD', 'DEMO']);
 
@@ -703,6 +707,7 @@ export const MonthlyPurchasesQuerySchema = z.object({
 export const MonthlyPurchasesItemSchema = z.object({
   no: z.number(),
   vehicleModelName: z.string(),
+  vehicleType: VehicleTypeSchema,
   exteriorColor: z.string(),
   vin: z.string(),
   engineNumber: z.string(),

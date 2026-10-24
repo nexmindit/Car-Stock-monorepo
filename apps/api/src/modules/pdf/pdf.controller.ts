@@ -723,10 +723,10 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         where: { id: params.saleId },
         include: {
           customer: true,
-          vehicleModel: true,
+          vehicleModel: { include: { vehicleType: true } },
           stock: {
             include: {
-              vehicleModel: true,
+              vehicleModel: { include: { vehicleType: true } },
             },
           },
           payments: {
@@ -745,6 +745,8 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       }
 
       const car = transformCar(sale.stock);
+      // ประเภทรถ prints the Thai name from vehicle_types, not the raw code.
+      const contractVehicleModel = sale.stock?.vehicleModel || sale.vehicleModel;
 
       // Get reservation payment (first payment)
       const reservationPayment =
@@ -801,7 +803,9 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
           year: (new Date().getFullYear() + 543).toString(),
         },
         customer: transformCustomer(sale.customer),
-        vehicleModel: sale.stock?.vehicleModel || sale.vehicleModel,
+        vehicleModel: contractVehicleModel
+          ? { ...contractVehicleModel, type: contractVehicleModel.vehicleType.nameTh }
+          : null,
         financial: {
           totalPrice: sale.totalAmount?.toString() || '0',
           depositAmount: sale.depositAmount?.toString() || '0',
