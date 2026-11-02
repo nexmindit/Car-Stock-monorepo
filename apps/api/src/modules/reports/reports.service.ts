@@ -8,6 +8,7 @@ import {
 // Import binds the name for local use; re-export keeps tests/consumers working.
 // Re-export-only does NOT bind splitVat in this module (ReferenceError on stock report).
 import { splitVat } from '@car-stock/shared/formulas';
+import type { StockModelColorSummary } from '@car-stock/shared/types';
 import type { PaymentStatus, SaleStatus, StockStatus, VehicleType } from '@prisma/client';
 import type { Decimal } from '@prisma/client/runtime/library';
 import { db } from '../../lib/db';
@@ -368,6 +369,39 @@ export async function getStockReport(params: StockReportParams) {
     }))
     .sort((a, b) => b.count - a.count);
 
+  // By model + colours — how many of each spec are left on the lot.
+  const modelColorGroups = new Map<string, StockModelColorSummary>();
+  for (const s of stockItems) {
+    const exteriorColor = s.exteriorColor?.trim() || '-';
+    const interiorColor = s.interiorColor?.trim() || '-';
+    const key = [s.brand, s.model, s.variant ?? '', exteriorColor, interiorColor].join('\u0000');
+    let g = modelColorGroups.get(key);
+    if (!g) {
+      g = {
+        brand: s.brand,
+        model: s.model,
+        variant: s.variant ?? null,
+        exteriorColor,
+        interiorColor,
+        count: 0,
+        availableCount: 0,
+        demoCount: 0,
+      };
+      modelColorGroups.set(key, g);
+    }
+    g.count++;
+    if (s.status === 'AVAILABLE') g.availableCount++;
+    else if (s.status === 'DEMO') g.demoCount++;
+  }
+  const byModelColor = [...modelColorGroups.values()].sort(
+    (a, b) =>
+      a.brand.localeCompare(b.brand, 'th') ||
+      a.model.localeCompare(b.model, 'th') ||
+      (a.variant ?? '').localeCompare(b.variant ?? '', 'th') ||
+      a.exteriorColor.localeCompare(b.exteriorColor, 'th') ||
+      a.interiorColor.localeCompare(b.interiorColor, 'th')
+  );
+
   // Chart data
   const chartData = {
     byStatus: byStatus.map((s) => ({ status: s.status, label: s.label, count: s.count })),
@@ -387,6 +421,7 @@ export async function getStockReport(params: StockReportParams) {
       totalValue,
       byStatus,
       byBrand,
+      byModelColor,
     },
     chartData,
   };

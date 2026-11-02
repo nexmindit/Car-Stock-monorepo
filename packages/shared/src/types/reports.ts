@@ -113,6 +113,19 @@ export interface StockReportSummary {
   totalValue: number;
   byStatus: StockStatusSummary[];
   byBrand: StockBrandSummary[];
+  /** Cars per brand/model/variant/exterior/interior colour, sorted by model. */
+  byModelColor: StockModelColorSummary[];
+}
+
+export interface StockModelColorSummary {
+  brand: string;
+  model: string;
+  variant: string | null;
+  exteriorColor: string;
+  interiorColor: string;
+  count: number;
+  availableCount: number;
+  demoCount: number;
 }
 
 export interface StockChartData {

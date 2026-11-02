@@ -30,6 +30,7 @@ export const stockRoutes = new Elysia({ prefix: '/stock' })
             t.Literal('PREPARING'),
             t.Literal('SOLD'),
             t.Literal('DEMO'),
+            t.Literal('IN_STOCK'),
           ])
         ),
         vehicleModelId: t.Optional(t.String()),

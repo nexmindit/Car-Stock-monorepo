@@ -10,7 +10,7 @@ import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
 
 const statusColors = {
-  DRAFT: 'bg-gray-100 text-gray-800',
+  DRAFT: 'bg-amber-100 text-amber-800',
   ACTIVE: 'bg-green-100 text-green-800',
   ENDED: 'bg-red-100 text-red-800',
 };
@@ -144,6 +144,12 @@ export const CampaignsListPage: React.FC = () => {
           </form>
         </div>
 
+        {data?.data?.some((c) => c.status === 'DRAFT') && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
+            มีแคมเปญสถานะ <b>แบบร่าง</b> ซึ่งยังไม่ถูกนำไปคำนวณในรายงาน — กดแก้ไขแล้วเปลี่ยนสถานะเป็น "กำลังดำเนินการ"
+          </div>
+        )}
+
         {/* Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {isLoading ? (
@@ -199,9 +205,10 @@ export const CampaignsListPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          className={`px-3 py-1 text-sm font-semibold rounded-full ${
                             statusColors[campaign.status]
                           }`}
+                          title={campaign.status === 'DRAFT' ? 'แบบร่าง: ยังไม่ถูกนำไปคำนวณในรายงาน' : undefined}
                         >
                           {statusLabels[campaign.status] ?? campaign.status}
                         </span>

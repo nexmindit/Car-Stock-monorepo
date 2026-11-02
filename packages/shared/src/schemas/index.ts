@@ -632,7 +632,8 @@ export const CustomerFilterSchema = PaginationSchema.extend({
 
 export const StockFilterSchema = PaginationSchema.extend({
   search: z.string().optional(),
-  status: StockStatusSchema.optional(),
+  // IN_STOCK = every status except SOLD (cars still on the lot).
+  status: z.union([StockStatusSchema, z.literal('IN_STOCK')]).optional(),
   vehicleModelId: z.string().optional(),
   brand: z.string().optional(),
   model: z.string().optional(),

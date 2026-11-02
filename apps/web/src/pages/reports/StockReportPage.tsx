@@ -167,6 +167,19 @@ export default function StockReportPage() {
       exportMultiSheet({
         sheets: [
           { name: 'สต็อกรถทั้งหมด', data: data.stocks.map(toExportRow) },
+          {
+            name: 'สรุปตามรุ่น-สี',
+            data: (data.summary.byModelColor ?? []).map((g) => ({
+              ยี่ห้อ: g.brand,
+              รุ่น: g.model,
+              รุ่นย่อย: g.variant || '-',
+              สีภายนอก: g.exteriorColor,
+              สีภายใน: g.interiorColor,
+              พร้อมขาย: g.availableCount,
+              'รถ Demo': g.demoCount,
+              รวม: g.count,
+            })),
+          },
           { name: 'สต็อกแยกเก๋ง', data: sedan.stocks.map(toExportRow) },
           { name: 'สต็อกแยกกะบะ', data: pickup.stocks.map(toExportRow) },
         ],
@@ -388,6 +401,53 @@ export default function StockReportPage() {
                 />
               </div>
             </div>
+
+            {/* Count per model × colour */}
+            {(data.summary.byModelColor?.length ?? 0) > 0 && (
+              <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">สรุปจำนวนตามรุ่นและสี</h3>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">รุ่น</th>
+                        <th className="px-3 py-2 text-left font-medium">สีภายนอก</th>
+                        <th className="px-3 py-2 text-left font-medium">สีภายใน</th>
+                        <th className="px-3 py-2 text-right font-medium">พร้อมขาย</th>
+                        <th className="px-3 py-2 text-right font-medium">รถ Demo</th>
+                        <th className="px-3 py-2 text-right font-medium">รวม</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {data.summary.byModelColor.map((g) => (
+                        <tr
+                          key={`${g.brand}|${g.model}|${g.variant}|${g.exteriorColor}|${g.interiorColor}`}
+                        >
+                          <td className="px-3 py-2 text-gray-900">
+                            {[g.brand, g.model, g.variant].filter(Boolean).join(' ')}
+                          </td>
+                          <td className="px-3 py-2">{g.exteriorColor}</td>
+                          <td className="px-3 py-2">{g.interiorColor}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(g.availableCount)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(g.demoCount)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatNumber(g.count)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 font-semibold">
+                      <tr>
+                        <td className="px-3 py-2" colSpan={3}>
+                          รวมทั้งหมด
+                        </td>
+                        <td className="px-3 py-2 text-right">{formatNumber(data.summary.availableCount)}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(data.summary.demoCount)}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(data.summary.totalCount)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Table */}
             <div className="mt-6">

@@ -103,11 +103,11 @@ export const CampaignFormPage: React.FC = () => {
       notes: formData.notes || undefined,
       branch: formData.branch.trim() || undefined,
       vehicleModelIds: formData.vehicleModelIds,
-      ...(isEdit && { status: formData.status }),
+      status: formData.status,
     };
 
     await executeQuery(
-      isEdit ? updateMutation.mutateAsync(data) : createMutation.mutateAsync(data)
+      isEdit ? updateMutation.mutateAsync(data) : createMutation.mutateAsync({ ...data, status: formData.status === 'ENDED' ? 'DRAFT' : formData.status })
     );
   };
 
@@ -199,28 +199,31 @@ export const CampaignFormPage: React.FC = () => {
               </div>
             </div>
 
-            {isEdit && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as 'DRAFT' | 'ACTIVE' | 'ENDED',
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="DRAFT">แบบร่าง</option>
-                  <option value="ACTIVE">กำลังดำเนินการ</option>
-                  <option value="ENDED">สิ้นสุดแล้ว</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  รุ่นเดียวกันเปิดได้หลายแคมเปญในช่วงเวลาเดียวกัน — รายงานเบิกแคมเปญจะรวมยอดจากทุกแคมเปญที่กำลังดำเนินการ
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">สถานะ</label>
+              <select
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    status: e.target.value as 'DRAFT' | 'ACTIVE' | 'ENDED',
+                  })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="DRAFT">แบบร่าง</option>
+                <option value="ACTIVE">กำลังดำเนินการ</option>
+                {isEdit && <option value="ENDED">สิ้นสุดแล้ว</option>}
+              </select>
+              {formData.status === 'DRAFT' && (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                  แบบร่าง = ยังไม่ถูกนำไปคำนวณในรายงาน เลือก "กำลังดำเนินการ" เมื่อพร้อมใช้งาน
                 </p>
-              </div>
-            )}
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                รุ่นเดียวกันเปิดได้หลายแคมเปญในช่วงเวลาเดียวกัน — รายงานเบิกแคมเปญจะรวมยอดจากทุกแคมเปญที่กำลังดำเนินการ
+              </p>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
