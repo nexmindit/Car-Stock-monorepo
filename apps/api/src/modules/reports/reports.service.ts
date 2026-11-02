@@ -207,8 +207,8 @@ interface StockReportParams extends StockAttributeFilters {
   vehicleType?: VehicleType;
 }
 
-/** Inventory still on the lot: ready to sell + demo. Sales-lifecycle statuses stay off this report. */
-const STOCK_REPORT_STATUSES = ['AVAILABLE', 'DEMO'] as StockStatus[];
+/** Every car still on the lot (not yet delivered): ready, reserved, preparing, demo. Only SOLD is excluded. */
+const STOCK_REPORT_STATUSES = ['AVAILABLE', 'RESERVED', 'PREPARING', 'DEMO'] as StockStatus[];
 
 export async function getStockReport(params: StockReportParams) {
   const { vehicleType } = params;
@@ -337,6 +337,8 @@ export async function getStockReport(params: StockReportParams) {
   const totalCount = stockItems.length;
   const availableCount = stockItems.filter((s) => s.status === 'AVAILABLE').length;
   const demoCount = stockItems.filter((s) => s.status === 'DEMO').length;
+  const reservedCount = stockItems.filter((s) => s.status === 'RESERVED').length;
+  const preparingCount = stockItems.filter((s) => s.status === 'PREPARING').length;
   const totalValue = stockItems.reduce((sum, s) => sum + s.totalCost, 0);
 
   // By status — only statuses this report includes
@@ -346,6 +348,18 @@ export async function getStockReport(params: StockReportParams) {
       label: 'พร้อมขาย',
       count: availableCount,
       percentage: totalCount > 0 ? (availableCount / totalCount) * 100 : 0,
+    },
+    {
+      status: 'RESERVED',
+      label: 'จองแล้ว',
+      count: reservedCount,
+      percentage: totalCount > 0 ? (reservedCount / totalCount) * 100 : 0,
+    },
+    {
+      status: 'PREPARING',
+      label: 'เตรียมส่งมอบ',
+      count: preparingCount,
+      percentage: totalCount > 0 ? (preparingCount / totalCount) * 100 : 0,
     },
     {
       status: 'DEMO',
@@ -385,12 +399,16 @@ export async function getStockReport(params: StockReportParams) {
         interiorColor,
         count: 0,
         availableCount: 0,
+        reservedCount: 0,
+        preparingCount: 0,
         demoCount: 0,
       };
       modelColorGroups.set(key, g);
     }
     g.count++;
     if (s.status === 'AVAILABLE') g.availableCount++;
+    else if (s.status === 'RESERVED') g.reservedCount++;
+    else if (s.status === 'PREPARING') g.preparingCount++;
     else if (s.status === 'DEMO') g.demoCount++;
   }
   const byModelColor = [...modelColorGroups.values()].sort(
@@ -415,8 +433,8 @@ export async function getStockReport(params: StockReportParams) {
       totalCount,
       availableCount,
       demoCount,
-      reservedCount: 0,
-      preparingCount: 0,
+      reservedCount,
+      preparingCount,
       soldCount: 0,
       totalValue,
       byStatus,

@@ -176,6 +176,8 @@ export default function StockReportPage() {
               สีภายนอก: g.exteriorColor,
               สีภายใน: g.interiorColor,
               พร้อมขาย: g.availableCount,
+              จองแล้ว: g.reservedCount,
+              เตรียมส่งมอบ: g.preparingCount,
               'รถ Demo': g.demoCount,
               รวม: g.count,
             })),
@@ -227,7 +229,7 @@ export default function StockReportPage() {
           กลับ
         </button>
         <h1 className="text-2xl font-bold text-gray-900">รายงานสต็อก</h1>
-        <p className="text-gray-600 mt-1">แสดงเฉพาะรถพร้อมขายและรถ Demo แยกตามยี่ห้อ</p>
+        <p className="text-gray-600 mt-1">รถทุกคันที่ยังอยู่ในสต็อก (พร้อมขาย จองแล้ว เตรียมส่งมอบ Demo) — ไม่รวมรถที่ขาย/ส่งมอบแล้ว</p>
       </div>
 
       {/* Date Filter */}
@@ -358,6 +360,14 @@ export default function StockReportPage() {
                 iconBgColor="bg-green-100"
               />
               <SummaryCard
+                title="จอง / เตรียมส่งมอบ"
+                value={formatNumber(data.summary.reservedCount + data.summary.preparingCount)}
+                subtitle={`จอง ${formatNumber(data.summary.reservedCount)} · เตรียมส่งมอบ ${formatNumber(data.summary.preparingCount)}`}
+                icon={Car}
+                iconColor="text-amber-600"
+                iconBgColor="bg-amber-100"
+              />
+              <SummaryCard
                 title="รถ Demo"
                 value={formatNumber(data.summary.demoCount)}
                 subtitle={
@@ -414,6 +424,8 @@ export default function StockReportPage() {
                         <th className="px-3 py-2 text-left font-medium">สีภายนอก</th>
                         <th className="px-3 py-2 text-left font-medium">สีภายใน</th>
                         <th className="px-3 py-2 text-right font-medium">พร้อมขาย</th>
+                        <th className="px-3 py-2 text-right font-medium">จองแล้ว</th>
+                        <th className="px-3 py-2 text-right font-medium">เตรียมส่งมอบ</th>
                         <th className="px-3 py-2 text-right font-medium">รถ Demo</th>
                         <th className="px-3 py-2 text-right font-medium">รวม</th>
                       </tr>
@@ -429,6 +441,8 @@ export default function StockReportPage() {
                           <td className="px-3 py-2">{g.exteriorColor}</td>
                           <td className="px-3 py-2">{g.interiorColor}</td>
                           <td className="px-3 py-2 text-right">{formatNumber(g.availableCount)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(g.reservedCount)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(g.preparingCount)}</td>
                           <td className="px-3 py-2 text-right">{formatNumber(g.demoCount)}</td>
                           <td className="px-3 py-2 text-right font-semibold">{formatNumber(g.count)}</td>
                         </tr>
@@ -440,6 +454,8 @@ export default function StockReportPage() {
                           รวมทั้งหมด
                         </td>
                         <td className="px-3 py-2 text-right">{formatNumber(data.summary.availableCount)}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(data.summary.reservedCount)}</td>
+                        <td className="px-3 py-2 text-right">{formatNumber(data.summary.preparingCount)}</td>
                         <td className="px-3 py-2 text-right">{formatNumber(data.summary.demoCount)}</td>
                         <td className="px-3 py-2 text-right">{formatNumber(data.summary.totalCount)}</td>
                       </tr>

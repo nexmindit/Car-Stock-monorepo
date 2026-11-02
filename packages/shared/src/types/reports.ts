@@ -125,6 +125,8 @@ export interface StockModelColorSummary {
   interiorColor: string;
   count: number;
   availableCount: number;
+  reservedCount: number;
+  preparingCount: number;
   demoCount: number;
 }
 

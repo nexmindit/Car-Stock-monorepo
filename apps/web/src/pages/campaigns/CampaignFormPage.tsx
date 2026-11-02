@@ -21,7 +21,7 @@ export const CampaignFormPage: React.FC = () => {
     description: '',
     startDate: '',
     endDate: '',
-    status: 'DRAFT' as 'DRAFT' | 'ACTIVE' | 'ENDED',
+    status: 'ACTIVE' as 'DRAFT' | 'ACTIVE' | 'ENDED',
     notes: '',
     branch: '',
     vehicleModelIds: [] as string[],

@@ -35,7 +35,7 @@ interface CreateCampaignData {
   notes?: string;
   branch?: string | null;
   vehicleModelIds?: string[];
-  /** DRAFT (default) or ACTIVE. Only ACTIVE campaigns count in reports. */
+  /** ACTIVE (default) or DRAFT. Only ACTIVE campaigns count in reports. */
   status?: 'DRAFT' | 'ACTIVE';
   createdById: string;
 }
@@ -215,6 +215,7 @@ class CampaignsService {
       const created = await tx.campaign.create({
         data: {
           ...campaignData,
+          status: campaignData.status ?? 'ACTIVE',
           vehicleModels: vehicleModelIds?.length
             ? {
                 create: vehicleModelIds.map((vehicleModelId) => ({
