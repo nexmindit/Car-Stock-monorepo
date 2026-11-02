@@ -60,7 +60,25 @@ interface SaleInfo {
       variant?: string;
     };
   };
+  // Booked model/colour for a reservation that has no VIN linked yet
+  vehicleModel?: {
+    brand: string;
+    model: string;
+    variant?: string;
+  };
+  preferredExtColor?: string;
 }
+
+const modelName = (m: { brand: string; model: string; variant?: string }) =>
+  `${m.brand} ${m.model}${m.variant ? ` ${m.variant}` : ''}`;
+
+// Thai colour names join "สี" directly (สีเบจ); English ones read better spaced.
+const colorLabel = (c?: string) => {
+  const t = c?.trim() ?? '';
+  if (!t) return '';
+  if (t.startsWith('สี')) return t;
+  return /^[A-Za-z]/.test(t) ? `สี ${t}` : `สี${t}`;
+};
 
 interface CustomerInfo {
   id: string;
@@ -190,6 +208,8 @@ export default function PaymentFormPage() {
           status: sale.status,
           customer: sale.customer,
           stock: sale.stock,
+          vehicleModel: sale.vehicleModel,
+          preferredExtColor: sale.preferredExtColor,
         };
         setSaleInfo(info);
         setFormData(prev => ({
@@ -198,6 +218,9 @@ export default function PaymentFormPage() {
           customerId: sale.customer.id,
           amount: sale.remainingAmount > 0 ? sale.remainingAmount : 0,
         }));
+        // execute() resolves to undefined on error; return a value so a
+        // successful load is not mistaken for a failure (which redirected away).
+        return true;
       })
     );
     if (!result) {
@@ -213,7 +236,17 @@ export default function PaymentFormPage() {
       return response.data.map(sale => ({
         value: sale.id,
         label: sale.saleNumber,
-        description: `${sale.customer.name} - ค้างชำระ ${formatCurrency(sale.remainingAmount)}`,
+        description: [
+          sale.customer.name,
+          sale.stock
+            ? modelName(sale.stock.vehicleModel)
+            : sale.vehicleModel
+              ? `${modelName(sale.vehicleModel)} ${colorLabel(sale.preferredExtColor)} (ยังไม่ผูก VIN)`
+              : '',
+          `ค้างชำระ ${formatCurrency(sale.remainingAmount)}`,
+        ]
+          .filter(Boolean)
+          .join(' - '),
         data: {
           id: sale.id,
           saleNumber: sale.saleNumber,
@@ -223,6 +256,8 @@ export default function PaymentFormPage() {
           status: sale.status,
           customer: sale.customer,
           stock: sale.stock,
+          vehicleModel: sale.vehicleModel,
+          preferredExtColor: sale.preferredExtColor,
         },
       }));
     } catch (error) {
@@ -490,6 +525,15 @@ export default function PaymentFormPage() {
                         {saleInfo.stock.vehicleModel.variant && ` ${saleInfo.stock.vehicleModel.variant}`}
                       </p>
                       <p className="text-sm text-gray-500">VIN: {saleInfo.stock.vin}</p>
+                    </div>
+                  )}
+                  {!saleInfo.stock && saleInfo.vehicleModel && (
+                    <div className="md:col-span-2">
+                      <p className="text-sm text-gray-500">รถที่จอง</p>
+                      <p className="font-medium">
+                        {modelName(saleInfo.vehicleModel)} {colorLabel(saleInfo.preferredExtColor)}
+                      </p>
+                      <p className="text-sm text-gray-500">ยังไม่ผูก VIN</p>
                     </div>
                   )}
                   <div>

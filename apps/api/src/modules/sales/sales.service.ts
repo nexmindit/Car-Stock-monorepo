@@ -276,6 +276,7 @@ export class SalesService {
               variant: true,
             },
           },
+          preferredExtColor: true,
           createdAt: true,
         },
         skip,
