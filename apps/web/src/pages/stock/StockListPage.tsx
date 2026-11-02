@@ -31,7 +31,7 @@ export default function StockListPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'RESERVED' | 'PREPARING' | 'SOLD' | 'DEMO'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'AVAILABLE' | 'RESERVED' | 'PREPARING' | 'SOLD' | 'DEMO'>('IN_STOCK');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -227,6 +227,7 @@ export default function StockListPage() {
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
           >
+            <option value="IN_STOCK">ในสต๊อก (ไม่รวมขายแล้ว)</option>
             <option value="ALL">สถานะทั้งหมด</option>
             <option value="AVAILABLE">พร้อมขาย</option>
             <option value="RESERVED">จองแล้ว</option>

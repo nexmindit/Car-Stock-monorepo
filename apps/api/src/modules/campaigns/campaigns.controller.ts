@@ -312,6 +312,7 @@ export const campaignRoutes = new Elysia({ prefix: '/campaigns' })
         notes: t.Optional(t.String()),
         branch: t.Optional(t.String()),
         vehicleModelIds: t.Optional(t.Array(t.String())),
+        status: t.Optional(t.Union([t.Literal('DRAFT'), t.Literal('ACTIVE')])),
       }),
       detail: {
         tags: ['Campaigns'],

@@ -92,7 +92,7 @@ export default function StockDetailPage() {
     setRecalculating(true);
     await executeQuery(
       stockService.recalculateInterest(stock.id).then((updated) => {
-        setStock(updated);
+        setStock((prev) => (prev ? { ...prev, ...updated, vehicleModel: updated.vehicleModel ?? prev.vehicleModel } : updated));
         addToast('คำนวณดอกเบี้ยใหม่สำเร็จ', 'success');
       })
     );
@@ -120,7 +120,7 @@ export default function StockDetailPage() {
 
     await executeQuery(
       stockService.updateStatus(stock.id, newStatus).then((updated) => {
-        setStock(updated);
+        setStock((prev) => (prev ? { ...prev, ...updated, vehicleModel: updated.vehicleModel ?? prev.vehicleModel } : updated));
         addToast('เปลี่ยนสถานะสำเร็จ', 'success');
       })
     );
@@ -204,7 +204,7 @@ export default function StockDetailPage() {
               </span>
             </div>
             <p className="text-gray-600 mt-1">
-              {stock.vehicleModel.brand} {stock.vehicleModel.model} {stock.vehicleModel.variant} ({stock.vehicleModel.year})
+              {stock.vehicleModel?.brand} {stock.vehicleModel?.model} {stock.vehicleModel?.variant} ({stock.vehicleModel?.year})
             </p>
           </div>
           <div className="flex gap-2">
@@ -260,7 +260,7 @@ export default function StockDetailPage() {
               <div>
                 <p className="text-sm text-gray-500">ยี่ห้อ/รุ่น</p>
                 <p className="text-gray-900">
-                  {stock.vehicleModel.brand} {stock.vehicleModel.model}
+                  {stock.vehicleModel?.brand} {stock.vehicleModel?.model}
                 </p>
               </div>
               <div>

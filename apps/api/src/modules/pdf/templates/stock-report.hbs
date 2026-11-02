@@ -59,6 +59,8 @@
       <tr>
         <th class="text-center">ทั้งหมด</th>
         <th class="text-center">พร้อมขาย</th>
+        <th class="text-center">จองแล้ว</th>
+        <th class="text-center">เตรียมส่งมอบ</th>
         <th class="text-center">รถ Demo</th>
         <th class="text-center">มูลค่ารวม (ต้นทุน)</th>
       </tr>
@@ -67,6 +69,8 @@
       <tr>
          <td class="text-center">{{summary.totalCount}}</td>
          <td class="text-center">{{summary.availableCount}}</td>
+         <td class="text-center">{{summary.reservedCount}}</td>
+         <td class="text-center">{{summary.preparingCount}}</td>
          <td class="text-center">{{summary.demoCount}}</td>
          <td class="text-right">{{formatCurrency summary.totalValue}}</td>
       </tr>

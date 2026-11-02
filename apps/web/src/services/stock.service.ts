@@ -93,7 +93,7 @@ export interface StockFilters {
   page?: number;
   limit?: number;
   search?: string;
-  status?: StockStatus;
+  status?: StockStatus | 'IN_STOCK';
   vehicleModelId?: string;
   brand?: string;
   model?: string;

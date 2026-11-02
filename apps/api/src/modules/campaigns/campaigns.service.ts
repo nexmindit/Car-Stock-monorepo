@@ -1,5 +1,5 @@
 import { db } from '../../lib/db';
-import { NotFoundError, BadRequestError, ForbiddenError, ConflictError } from '../../lib/errors';
+import { NotFoundError, BadRequestError, ForbiddenError, AppError } from '../../lib/errors';
 import { Prisma, CampaignStatus } from '@prisma/client';
 import { formulaSubsidyAmount, sumCampaignSubsidies } from '@car-stock/shared/formulas';
 import { diffModelSet } from './campaign-model-set.helpers';
@@ -35,6 +35,8 @@ interface CreateCampaignData {
   notes?: string;
   branch?: string | null;
   vehicleModelIds?: string[];
+  /** ACTIVE (default) or DRAFT. Only ACTIVE campaigns count in reports. */
+  status?: 'DRAFT' | 'ACTIVE';
   createdById: string;
 }
 
@@ -213,6 +215,7 @@ class CampaignsService {
       const created = await tx.campaign.create({
         data: {
           ...campaignData,
+          status: campaignData.status ?? 'ACTIVE',
           vehicleModels: vehicleModelIds?.length
             ? {
                 create: vehicleModelIds.map((vehicleModelId) => ({
@@ -260,6 +263,12 @@ class CampaignsService {
 
       return created;
     });
+
+    // Created straight into ACTIVE: link existing sales in the window, same as
+    // activating a DRAFT through update().
+    if (campaign.status === 'ACTIVE') {
+      await this.tagRetroactiveSales(campaign.id);
+    }
 
     return {
       ...campaign,
@@ -610,7 +619,7 @@ class CampaignsService {
     });
 
     if (existing) {
-      throw new ConflictError('Vehicle model');
+      throw new AppError('รุ่นรถนี้อยู่ในแคมเปญนี้แล้ว', 409, 'VEHICLE_MODEL_ALREADY_EXISTS');
     }
 
     await db.campaignVehicleModel.create({

@@ -39,6 +39,7 @@ export interface CreateCampaignData {
   notes?: string;
   branch?: string;
   vehicleModelIds?: string[];
+  status?: 'DRAFT' | 'ACTIVE';
 }
 
 export interface UpdateCampaignData {

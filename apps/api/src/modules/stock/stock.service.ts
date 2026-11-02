@@ -152,7 +152,9 @@ export class StockService {
       ];
     }
 
-    if (validated.status) {
+    if (validated.status === 'IN_STOCK') {
+      where.status = { not: 'SOLD' };
+    } else if (validated.status) {
       where.status = validated.status;
     }
 
