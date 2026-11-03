@@ -47,7 +47,9 @@ export const CampaignFormPage: React.FC = () => {
         description: campaign.description || '',
         startDate: campaign.startDate.split('T')[0],
         endDate: campaign.endDate.split('T')[0],
-        status: campaign.status,
+        // storedStatus, not the date-projected status: otherwise extending an
+        // expired campaign's end date saves it as ENDED.
+        status: campaign.storedStatus ?? campaign.status,
         notes: campaign.notes || '',
         branch: campaign.branch || '',
         vehicleModelIds: campaign.vehicleModels.map((vm) => vm.id),

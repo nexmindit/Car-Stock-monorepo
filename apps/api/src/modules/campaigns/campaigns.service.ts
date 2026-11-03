@@ -192,6 +192,10 @@ class CampaignsService {
     return {
       ...campaign,
       status: getEffectiveStatus(campaign.status, campaign.endDate),
+      // What is actually saved. The edit form must start from this: loading
+      // the projected ENDED and saving it back froze an ACTIVE campaign as
+      // ENDED even after its end date was extended.
+      storedStatus: campaign.status,
       vehicleModels: campaign.vehicleModels.map((vm) => vm.vehicleModel),
       salesCount: campaign._count.sales,
     };
