@@ -161,8 +161,16 @@ export default function SalesSummaryReportPage() {
       ),
     },
     {
+      key: 'commissionSurcharge',
+      label: 'คอม 8%',
+      align: 'right' as const,
+      render: (value: number) => (
+        <span className="text-purple-600 font-medium">{formatCurrency(value)}</span>
+      ),
+    },
+    {
       key: 'commissionVat',
-      label: 'VAT 8%',
+      label: 'VAT 7%',
       align: 'right' as const,
       render: (value: number) => (
         <span className="text-orange-600 font-medium">{formatCurrency(value)}</span>
@@ -170,7 +178,7 @@ export default function SalesSummaryReportPage() {
     },
     {
       key: 'commissionWithVat',
-      label: 'ค่าคอมรวม VAT',
+      label: 'รวมทั้งหมด',
       align: 'right' as const,
       render: (value: number) => (
         <span className="text-green-600 font-medium">{formatCurrency(value)}</span>

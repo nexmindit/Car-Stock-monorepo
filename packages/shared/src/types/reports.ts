@@ -272,7 +272,11 @@ export interface SalesBySalesperson {
   canceledCount: number;
   totalAmount: number;
   commission: number;
+  /** commission × 8% */
+  commissionSurcharge: number;
+  /** commission × VAT 7% */
   commissionVat: number;
+  /** commission + 8% + VAT 7% */
   commissionWithVat: number;
 }
 

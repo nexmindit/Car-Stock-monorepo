@@ -27,8 +27,9 @@ describe('buildSalespersonBreakdown', () => {
     const r = rows[0];
     // entered: 1,000 + 2,000 = 3,000  (NOT 1% of 1,200,000 = 12,000)
     expect(r.commission).toBe(3_000);
-    expect(r.commissionVat).toBe(240); // 8% of 3,000
-    expect(r.commissionWithVat).toBe(3_240);
+    expect(r.commissionSurcharge).toBe(240); // 8% of 3,000
+    expect(r.commissionVat).toBe(210); // VAT 7% of 3,000
+    expect(r.commissionWithVat).toBe(3_450);
     expect(r.totalAmount).toBe(1_200_000);
   });
 

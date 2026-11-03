@@ -188,12 +188,13 @@
     <thead>
       <tr>
         <th style="width: 5%">ลำดับ</th>
-        <th style="width: 27%">พนักงานขาย</th>
+        <th style="width: 23%">พนักงานขาย</th>
         <th style="width: 10%">จำนวน (คัน)</th>
         <th style="width: 16%">ยอดขาย</th>
-        <th style="width: 14%">ค่าคอม</th>
-        <th style="width: 12%">VAT 8%</th>
-        <th style="width: 16%">ค่าคอมรวม VAT</th>
+        <th style="width: 12%">ค่าคอม</th>
+        <th style="width: 10%">คอม 8%</th>
+        <th style="width: 10%">VAT 7%</th>
+        <th style="width: 13%">รวมทั้งหมด</th>
       </tr>
     </thead>
     <tbody>
@@ -204,6 +205,7 @@
         <td class="text-center">{{totalSales}}</td>
         <td class="text-right">{{formatInt totalAmount}}</td>
         <td class="text-right">{{formatCurrency commission false}}</td>
+        <td class="text-right">{{formatCurrency commissionSurcharge false}}</td>
         <td class="text-right">{{formatCurrency commissionVat false}}</td>
         <td class="text-right">{{formatCurrency commissionWithVat false}}</td>
       </tr>
