@@ -35,7 +35,8 @@ function fmtAmount(val: number | null | undefined): string {
 
 /** Map payment method → report money columns matching legacy layout. */
 function methodAmounts(p: DailyPaymentItem) {
-  const a = p.amount;
+  // ลูกค้าหัก ณ ที่จ่าย: money columns show what was actually received.
+  const a = p.amount - (p.withholdingTaxAmount || 0);
   return {
     cash: p.paymentMethod === 'CASH' ? a : 0,
     cheque: p.paymentMethod === 'CHEQUE' ? a : 0,
@@ -58,11 +59,11 @@ function enrichPayment(p: DailyPaymentItem) {
     cashAmount: methods.cash,
     chequeAmount: methods.cheque,
     transferAmount: methods.transfer,
-    // No data source yet — columns kept for parity with legacy report
+    // No data source yet — fee/other columns kept for parity with legacy report
     feeAmount: 0,
     otherIncomeAmount: 0,
     otherExpenseAmount: 0,
-    customerPaidAmount: 0,
+    customerPaidAmount: p.withholdingTaxAmount || 0,
   };
 }
 

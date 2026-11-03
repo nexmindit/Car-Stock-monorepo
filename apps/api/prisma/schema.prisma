@@ -337,6 +337,8 @@ model Payment {
   receivingBranch    String?       @map("receiving_branch")
   actualReceivedDate DateTime?     @map("actual_received_date")
   netReceivedAmount  Decimal?      @map("net_received_amount") @db.Decimal(15, 2)
+  /// ลูกค้าหัก ณ ที่จ่าย — withheld by the customer; amount stays the gross receipt.
+  withholdingTaxAmount Decimal?    @map("withholding_tax_amount") @db.Decimal(15, 2)
   status             PaymentStatus @default(ACTIVE)
   voidReason         String?       @map("void_reason")
   voidedAt           DateTime?     @map("voided_at")

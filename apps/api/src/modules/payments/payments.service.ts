@@ -195,6 +195,9 @@ export class PaymentsService {
     }
 
     const validated = CreatePaymentSchema.parse(data);
+    if ((validated.withholdingTaxAmount ?? 0) > validated.amount) {
+      throw new BadRequestError('ยอดหัก ณ ที่จ่ายต้องไม่เกินจำนวนเงิน');
+    }
 
     // Check if customer exists
     const customer = await db.customer.findUnique({
@@ -309,6 +312,9 @@ export class PaymentsService {
             receivingBankName: validated.receivingBankName || null,
             receivingAccountNumber: validated.receivingAccountNumber || null,
             receivingBranch: validated.receivingBranch || null,
+            actualReceivedDate: validated.actualReceivedDate ?? null,
+            netReceivedAmount: validated.netReceivedAmount || null,
+            withholdingTaxAmount: validated.withholdingTaxAmount || null,
             receiptNumber,
             createdById: currentUser.id,
             issuedBy: issuedByName,
@@ -367,7 +373,14 @@ export class PaymentsService {
 
     const existingPayment = await db.payment.findUnique({
       where: { id },
-      select: { id: true, status: true, amount: true, saleId: true, paymentType: true },
+      select: {
+        id: true,
+        status: true,
+        amount: true,
+        saleId: true,
+        paymentType: true,
+        withholdingTaxAmount: true,
+      },
     });
 
     if (!existingPayment) {
@@ -380,6 +393,14 @@ export class PaymentsService {
 
     const oldAmount = Number(existingPayment.amount);
     const newAmount = validated.amount ?? oldAmount;
+    const newWht =
+      validated.withholdingTaxAmount !== undefined
+        ? (validated.withholdingTaxAmount ?? 0)
+        : Number(existingPayment.withholdingTaxAmount ?? 0);
+    if (newWht > newAmount) {
+      throw new BadRequestError('ยอดหัก ณ ที่จ่ายต้องไม่เกินจำนวนเงิน');
+    }
+    if (validated.withholdingTaxAmount === 0) validated.withholdingTaxAmount = null;
 
     const oldType = existingPayment.paymentType;
     const newType = validated.paymentType ?? oldType;

@@ -1553,6 +1553,9 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         const amount = Number(p.amount);
         const baseAmount = amount;
         const vatAmount = 0;
+        // Customer withheld tax: the money columns show what was actually received.
+        const wht = Number(p.withholdingTaxAmount ?? 0);
+        const received = amount - wht;
         return {
           paymentDate: p.paymentDate,
           receiptNumber: p.receiptNumber,
@@ -1565,20 +1568,26 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
           amount,
           baseAmount,
           vatAmount,
-          cashAmount: p.paymentMethod === 'CASH' ? amount : 0,
-          chequeAmount: p.paymentMethod === 'CHEQUE' ? amount : 0,
+          cashAmount: p.paymentMethod === 'CASH' ? received : 0,
+          chequeAmount: p.paymentMethod === 'CHEQUE' ? received : 0,
           transferAmount:
-            p.paymentMethod === 'BANK_TRANSFER' || p.paymentMethod === 'CREDIT_CARD' ? amount : 0,
+            p.paymentMethod === 'BANK_TRANSFER' || p.paymentMethod === 'CREDIT_CARD' ? received : 0,
           // Layout-parity stubs (no data source yet)
           feeAmount: 0,
           otherIncomeAmount: 0,
           otherExpenseAmount: 0,
-          customerPaidAmount: 0,
+          customerPaidAmount: wht,
         };
       });
 
       const sumCol = (
-        key: 'baseAmount' | 'vatAmount' | 'cashAmount' | 'chequeAmount' | 'transferAmount'
+        key:
+          | 'baseAmount'
+          | 'vatAmount'
+          | 'cashAmount'
+          | 'chequeAmount'
+          | 'transferAmount'
+          | 'customerPaidAmount'
       ) => mappedPayments.reduce((s, p) => s + p[key], 0);
 
       const header = await getCompanyHeader();
@@ -1599,7 +1608,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
           feeAmount: 0,
           otherIncomeAmount: 0,
           otherExpenseAmount: 0,
-          customerPaidAmount: 0,
+          customerPaidAmount: sumCol('customerPaidAmount'),
           byMethod: [],
           byType: [],
         },

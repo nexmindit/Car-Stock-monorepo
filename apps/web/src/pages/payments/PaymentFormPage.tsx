@@ -102,6 +102,7 @@ interface FormData {
   receivingBranch?: string;
   actualReceivedDate?: string;
   netReceivedAmount?: number;
+  withholdingTaxAmount?: number;
 }
 
 type PaymentMode = 'sale' | 'miscellaneous';
@@ -348,6 +349,9 @@ export default function PaymentFormPage() {
     if (formData.amount <= 0) {
       newErrors.amount = 'กรุณาระบุจำนวนเงิน';
     }
+    if ((formData.withholdingTaxAmount ?? 0) > formData.amount) {
+      newErrors.withholdingTaxAmount = 'ยอดหัก ณ ที่จ่ายต้องไม่เกินจำนวนเงิน';
+    }
 
     if (!formData.paymentDate) {
       newErrors.paymentDate = 'กรุณาระบุวันที่ชำระ';
@@ -387,6 +391,7 @@ export default function PaymentFormPage() {
       receivingBranch: formData.receivingBranch || undefined,
       actualReceivedDate: formData.actualReceivedDate || undefined,
       netReceivedAmount: formData.netReceivedAmount || undefined,
+      withholdingTaxAmount: formData.withholdingTaxAmount || undefined,
     };
 
     // Only include saleId for sale-linked payments
@@ -639,6 +644,34 @@ export default function PaymentFormPage() {
                 {errors.amount && (
                   <p className="text-sm text-red-500 mt-1">{errors.amount}</p>
                 )}
+              </div>
+
+              {/* Withholding tax deducted by the customer */}
+              <div>
+                <label htmlFor="withholdingTaxAmount" className="block text-sm font-medium text-gray-700 mb-1">
+                  ลูกค้าหัก ณ ที่จ่าย (บาท)
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <input
+                    id="withholdingTaxAmount"
+                    type="number"
+                    value={formData.withholdingTaxAmount || ''}
+                    onChange={(e) => handleInputChange('withholdingTaxAmount', Number.parseFloat(e.target.value) || 0)}
+                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.withholdingTaxAmount ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    min="0"
+                    step="0.01"
+                    placeholder="ไม่มีให้เว้นว่าง"
+                  />
+                </div>
+                {errors.withholdingTaxAmount ? (
+                  <p className="text-sm text-red-500 mt-1">{errors.withholdingTaxAmount}</p>
+                ) : (formData.withholdingTaxAmount ?? 0) > 0 && formData.amount > 0 ? (
+                  <p className="text-xs text-gray-500 mt-1">
+                    รับเงินจริง {(formData.amount - (formData.withholdingTaxAmount ?? 0)).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+                  </p>
+                ) : null}
               </div>
 
               {/* Payment Date */}

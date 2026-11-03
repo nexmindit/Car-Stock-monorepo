@@ -123,6 +123,7 @@ export async function getDailyPaymentReport(params: DailyPaymentParams) {
       PAYMENT_METHOD_LABELS[p.paymentMethod as keyof typeof PAYMENT_METHOD_LABELS] ||
       p.paymentMethod,
     amount: toNumber(p.amount),
+    withholdingTaxAmount: toNumber(p.withholdingTaxAmount ?? 0),
     saleNumber: p.sale?.saleNumber,
     issuedBy: p.issuedBy,
     notes: p.notes,

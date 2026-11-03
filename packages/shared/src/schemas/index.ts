@@ -538,6 +538,10 @@ export const CreatePaymentSchema = z.object({
   receivingBankName: z.string().optional(),
   receivingAccountNumber: z.string().optional(),
   receivingBranch: z.string().optional(),
+  // Finance payments: date/amount actually received from the finance company.
+  actualReceivedDate: z.coerce.date().optional(),
+  netReceivedAmount: z.number().min(0).optional(),
+  withholdingTaxAmount: z.number().min(0).optional(),
 });
 
 export const UpdatePaymentSchema = z.object({
@@ -553,6 +557,8 @@ export const UpdatePaymentSchema = z.object({
   receivingBankName: z.string().optional(),
   receivingAccountNumber: z.string().optional(),
   receivingBranch: z.string().optional(),
+  // null clears it
+  withholdingTaxAmount: z.number().min(0).nullable().optional(),
 });
 
 export const VoidPaymentSchema = z.object({
