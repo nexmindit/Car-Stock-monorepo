@@ -193,6 +193,7 @@ export default function SalesSummaryReportPage() {
         startDate,
         endDate,
         status: statusFilter || undefined,
+        vehicleType: vehicleTypeFilter || undefined,
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -244,16 +245,12 @@ export default function SalesSummaryReportPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">ทั้งหมด</option>
-            <option value="QUOTATION">ใบเสนอราคา</option>
-            <option value="DEPOSIT_PENDING">รอวางมัดจำ</option>
-            <option value="DEPOSIT_RECEIVED">รับมัดจำแล้ว</option>
-            <option value="FINANCE_PENDING">รอไฟแนนซ์</option>
-            <option value="FINANCE_APPROVED">ไฟแนนซ์อนุมัติ</option>
-            <option value="PREPARING_DELIVERY">เตรียมส่งมอบ</option>
+            <option value="">ขายแล้วทั้งหมด (ไม่รวมจอง/ยกเลิก)</option>
+            <option value="PREPARING">เตรียมส่งมอบ</option>
             <option value="DELIVERED">ส่งมอบแล้ว</option>
             <option value="COMPLETED">สำเร็จ</option>
-            <option value="CANCELED">ยกเลิก</option>
+            <option value="RESERVED">จอง</option>
+            <option value="CANCELLED">ยกเลิก</option>
           </select>
         </div>
         <div>
