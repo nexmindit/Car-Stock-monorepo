@@ -274,8 +274,11 @@ export default function PaymentEditPage() {
               />
             </div>
             <div>
-              <label className={labelClass}>ลูกค้าหัก ณ ที่จ่าย (บาท)</label>
+              <label htmlFor="withholdingTaxAmount" className={labelClass}>
+                ลูกค้าหัก ณ ที่จ่าย (บาท)
+              </label>
               <input
+                id="withholdingTaxAmount"
                 type="number"
                 className={inputClass}
                 value={formData.withholdingTaxAmount || ''}
