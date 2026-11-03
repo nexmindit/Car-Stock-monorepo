@@ -664,6 +664,8 @@ interface SalesSummaryParams {
   vehicleType?: VehicleType;
 }
 
+const SALES_SUMMARY_DEFAULT_STATUSES = ['PREPARING', 'DELIVERED', 'COMPLETED'] as SaleStatus[];
+
 export async function getSalesSummaryReport(params: SalesSummaryParams) {
   const { startDate, endDate, status, salespersonId, vehicleType } = params;
 
@@ -678,6 +680,10 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
 
   if (status) {
     where.status = status;
+  } else {
+    // Default = cars actually sold. RESERVED is a booking (often no car yet:
+    // cost 0 made the whole price show as profit) and CANCELLED never sold.
+    where.status = { in: SALES_SUMMARY_DEFAULT_STATUSES };
   }
 
   if (salespersonId) {
