@@ -162,7 +162,7 @@ export default function SalesSummaryReportPage() {
     },
     {
       key: 'commissionVat',
-      label: 'VAT 7%',
+      label: 'VAT 8%',
       align: 'right' as const,
       render: (value: number) => (
         <span className="text-orange-600 font-medium">{formatCurrency(value)}</span>

@@ -49,6 +49,7 @@
     color: #333;
     font-size: 9px;
   }
+  .salesperson-table th, .salesperson-table td { font-size: 10px; padding: 3px 4px; }
 </style>
 
 <div class="header">
@@ -99,6 +100,7 @@
         <th rowspan="2" style="width: 5%">ต้นทุน</th>
         <th rowspan="2" style="width: 4%">แคมเปญขาย</th>
         <th rowspan="2" style="width: 4%">กำไร<br>ขั้นต้น</th>
+        <th rowspan="2" style="width: 5%">พนักงานขาย</th>
         <th rowspan="2" style="width: 4%">คอมฯ<br>พนักงาน</th>
         <th rowspan="2" style="width: 3%">ค่าใช้จ่าย<br>ขาย</th>
         <th rowspan="2" style="width: 3%">ค่าเบี้ย<br>ประกัน</th>
@@ -141,6 +143,7 @@
         <td class="text-right">{{formatInt totalCost}}</td>
         <td class="text-right">{{formatInt campaignSubsidy}}</td>
         <td class="text-right">{{formatInt (subtract totalAmount totalCost)}}</td>
+        <td style="word-break: break-word;">{{salesperson}}</td>
         <td class="text-right">{{formatInt salesCommission}}</td>
         <td class="text-right">{{formatInt salesExpense}}</td>
         <td class="text-right">{{formatInt insurancePremium}}</td>
@@ -167,6 +170,7 @@
         <td class="text-right">{{formatInt summary.totalCostSum}}</td>
         <td class="text-right">{{formatInt summary.totalCampaignSubsidy}}</td>
         <td class="text-right"></td>
+        <td></td>
         <td class="text-right">{{formatInt summary.totalSalesCommission}}</td>
         <td class="text-right">{{formatInt summary.totalSalesExpense}}</td>
         <td class="text-right">{{formatInt summary.totalInsurancePremium}}</td>
@@ -176,6 +180,38 @@
     </tbody>
   </table>
 </div>
+
+{{#if bySalesperson.length}}
+<div style="page-break-inside: avoid; break-inside: avoid; margin-top: 18px;">
+  <div style="font-weight: bold; font-size: 11px; margin-bottom: 4px;">สรุปค่าคอมพนักงานขาย</div>
+  <table class="salesperson-table" style="width: 65%;">
+    <thead>
+      <tr>
+        <th style="width: 5%">ลำดับ</th>
+        <th style="width: 27%">พนักงานขาย</th>
+        <th style="width: 10%">จำนวน (คัน)</th>
+        <th style="width: 16%">ยอดขาย</th>
+        <th style="width: 14%">ค่าคอม</th>
+        <th style="width: 12%">VAT 8%</th>
+        <th style="width: 16%">ค่าคอมรวม VAT</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each bySalesperson}}
+      <tr>
+        <td class="text-center">{{add @index 1}}</td>
+        <td>{{salesperson}}</td>
+        <td class="text-center">{{totalSales}}</td>
+        <td class="text-right">{{formatInt totalAmount}}</td>
+        <td class="text-right">{{formatCurrency commission false}}</td>
+        <td class="text-right">{{formatCurrency commissionVat false}}</td>
+        <td class="text-right">{{formatCurrency commissionWithVat false}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{/if}}
 
 <div style="page-break-inside: avoid; break-inside: avoid;">
   <table style="width: 65%; margin-top: 18px; font-size: 10px; border: none;">
