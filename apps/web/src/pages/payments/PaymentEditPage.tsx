@@ -39,6 +39,7 @@ interface FormData {
   receivingBankName: string;
   receivingAccountNumber: string;
   receivingBranch: string;
+  withholdingTaxAmount: number;
 }
 
 /** Match saved payment snapshot to a bank-account master row (by account number, then name). */
@@ -85,6 +86,7 @@ export default function PaymentEditPage() {
     receivingBankName: '',
     receivingAccountNumber: '',
     receivingBranch: '',
+    withholdingTaxAmount: 0,
   });
 
   useEffect(() => {
@@ -142,6 +144,7 @@ export default function PaymentEditPage() {
         receivingBankName: result.receivingBankName || result.receivingBank || '',
         receivingAccountNumber: result.receivingAccountNumber || '',
         receivingBranch: result.receivingBranch || '',
+        withholdingTaxAmount: Number(result.withholdingTaxAmount ?? 0),
         // account id resolved after bank list loads (see effect below)
         receivingBankAccountId: prev.receivingBankAccountId,
       }));
@@ -189,6 +192,7 @@ export default function PaymentEditPage() {
         receivingBankName: formData.receivingBankName || undefined,
         receivingAccountNumber: formData.receivingAccountNumber || undefined,
         receivingBranch: formData.receivingBranch || undefined,
+        withholdingTaxAmount: formData.withholdingTaxAmount || null,
       })
     );
     if (result) {
@@ -267,6 +271,23 @@ export default function PaymentEditPage() {
                 }
                 min="0"
                 step="0.01"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>ลูกค้าหัก ณ ที่จ่าย (บาท)</label>
+              <input
+                type="number"
+                className={inputClass}
+                value={formData.withholdingTaxAmount || ''}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    withholdingTaxAmount: Number.parseFloat(e.target.value) || 0,
+                  }))
+                }
+                min="0"
+                step="0.01"
+                placeholder="ไม่มีให้เว้นว่าง"
               />
             </div>
           </div>

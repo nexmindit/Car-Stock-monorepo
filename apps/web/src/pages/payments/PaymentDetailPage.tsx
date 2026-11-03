@@ -321,6 +321,22 @@ export default function PaymentDetailPage() {
                   {formatCurrency(payment.amount)}
                 </dd>
               </div>
+              {Number(payment.withholdingTaxAmount ?? 0) > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">ลูกค้าหัก ณ ที่จ่าย</dt>
+                    <dd className="text-sm font-medium text-red-600">
+                      {formatCurrency(Number(payment.withholdingTaxAmount))}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">รับเงินจริง</dt>
+                    <dd className="text-sm font-medium">
+                      {formatCurrency(Number(payment.amount) - Number(payment.withholdingTaxAmount))}
+                    </dd>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between">
                 <dt className="text-sm text-gray-500">วันที่ชำระ</dt>
                 <dd className="text-sm font-medium">{formatDate(payment.paymentDate)}</dd>

@@ -140,6 +140,9 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
         receivingBankName: t.Optional(t.String()),
         receivingAccountNumber: t.Optional(t.String()),
         receivingBranch: t.Optional(t.String()),
+        actualReceivedDate: t.Optional(t.String()),
+        netReceivedAmount: t.Optional(t.Number({ minimum: 0 })),
+        withholdingTaxAmount: t.Optional(t.Number({ minimum: 0 })),
       }),
       detail: {
         tags: ['Payments'],
@@ -186,6 +189,7 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
         receivingBankName: t.Optional(t.String()),
         receivingAccountNumber: t.Optional(t.String()),
         receivingBranch: t.Optional(t.String()),
+        withholdingTaxAmount: t.Optional(t.Union([t.Number({ minimum: 0 }), t.Null()])),
       }),
       detail: {
         tags: ['Payments'],

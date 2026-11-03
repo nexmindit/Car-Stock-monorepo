@@ -24,6 +24,8 @@ export interface DailyPaymentItem {
   paymentMethod: string;
   paymentMethodLabel: string;
   amount: number;
+  /** ลูกค้าหัก ณ ที่จ่าย; the money columns hold amount − this. */
+  withholdingTaxAmount: number;
   saleNumber?: string;
   issuedBy?: string;
   notes?: string;

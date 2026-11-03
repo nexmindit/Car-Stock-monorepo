@@ -102,23 +102,34 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         const vatAmount = 0;
         // PaymentForm "หมายเหตุ" (sale mode) is stored in description; edit form uses notes.
         const itemDetail = p.description || p.notes || '';
+        // Customer withheld tax: the money columns show what was actually received.
+        const wht = p.withholdingTaxAmount || 0;
+        const received = p.amount - wht;
         return {
           ...p,
           itemDetail,
           baseAmount,
           vatAmount,
-          cashAmount: p.paymentMethod === 'CASH' ? p.amount : 0,
-          chequeAmount: p.paymentMethod === 'CHEQUE' ? p.amount : 0,
+          cashAmount: p.paymentMethod === 'CASH' ? received : 0,
+          chequeAmount: p.paymentMethod === 'CHEQUE' ? received : 0,
           transferAmount:
-            p.paymentMethod === 'BANK_TRANSFER' || p.paymentMethod === 'CREDIT_CARD' ? p.amount : 0,
+            p.paymentMethod === 'BANK_TRANSFER' || p.paymentMethod === 'CREDIT_CARD' ? received : 0,
           feeAmount: 0,
           otherIncomeAmount: 0,
           otherExpenseAmount: 0,
-          customerPaidAmount: 0,
+          customerPaidAmount: wht,
         };
       });
 
-      const sum = (key: 'baseAmount' | 'vatAmount' | 'cashAmount' | 'chequeAmount' | 'transferAmount') =>
+      const sum = (
+        key:
+          | 'baseAmount'
+          | 'vatAmount'
+          | 'cashAmount'
+          | 'chequeAmount'
+          | 'transferAmount'
+          | 'customerPaidAmount'
+      ) =>
         enrichedPayments.reduce((s, p) => s + p[key], 0);
 
       const pdfBuffer = await pdfService.generateDailyPaymentReport({
@@ -135,7 +146,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
           feeAmount: 0,
           otherIncomeAmount: 0,
           otherExpenseAmount: 0,
-          customerPaidAmount: 0,
+          customerPaidAmount: sum('customerPaidAmount'),
         },
       });
 

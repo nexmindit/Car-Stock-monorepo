@@ -29,6 +29,7 @@ export interface Payment {
   receivingBankName?: string | null;
   receivingAccountNumber?: string | null;
   receivingBranch?: string | null;
+  withholdingTaxAmount?: number | string | null;
   customer: {
     id: string;
     code: string;
@@ -88,6 +89,7 @@ export interface CreatePaymentData {
   receivingBranch?: string;
   actualReceivedDate?: string;
   netReceivedAmount?: number;
+  withholdingTaxAmount?: number;
 }
 
 /** Fields allowed when editing an existing receipt (PATCH /api/payments/:id). */
@@ -104,6 +106,7 @@ export interface UpdatePaymentData {
   receivingBankName?: string;
   receivingAccountNumber?: string;
   receivingBranch?: string;
+  withholdingTaxAmount?: number | null;
 }
 
 export interface VoidPaymentData {
