@@ -1,7 +1,9 @@
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Rate applied on top of staff sales commission (customer-specified 8%). */
-const COMMISSION_VAT_RATE = 0.08;
+/** Customer-specified 8% added on top of the entered staff commission. */
+const COMMISSION_SURCHARGE_RATE = 0.08;
+/** VAT on the entered staff commission. */
+const COMMISSION_VAT_RATE = 0.07;
 
 /** One sale's fields needed to build the per-salesperson breakdown. */
 export interface SalespersonSaleInput {
@@ -23,7 +25,11 @@ export interface SalespersonBreakdownRow {
   totalAmount: number;
   /** Sum of the entered salesCommission for this salesperson. */
   commission: number;
+  /** commission × 8% */
+  commissionSurcharge: number;
+  /** commission × VAT 7% */
   commissionVat: number;
+  /** commission + 8% + VAT 7% */
   commissionWithVat: number;
 }
 
@@ -81,6 +87,7 @@ export function buildSalespersonBreakdown(
   return Object.values(groups)
     .map((g) => {
       const commission = round2(g.commission);
+      const commissionSurcharge = round2(commission * COMMISSION_SURCHARGE_RATE);
       const commissionVat = round2(commission * COMMISSION_VAT_RATE);
       return {
         id: g.id,
@@ -91,8 +98,9 @@ export function buildSalespersonBreakdown(
         canceledCount: g.canceled,
         totalAmount: g.amount,
         commission,
+        commissionSurcharge,
         commissionVat,
-        commissionWithVat: round2(commission + commissionVat),
+        commissionWithVat: round2(commission + commissionSurcharge + commissionVat),
       };
     })
     .sort((a, b) => b.totalAmount - a.totalAmount);
