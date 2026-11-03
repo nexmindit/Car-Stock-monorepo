@@ -16,6 +16,8 @@ export interface Campaign {
   name: string;
   description?: string;
   status: 'DRAFT' | 'ACTIVE' | 'ENDED';
+  /** Saved status (status above may be projected to ENDED from endDate). Detail endpoint only. */
+  storedStatus?: 'DRAFT' | 'ACTIVE' | 'ENDED';
   startDate: string;
   endDate: string;
   notes?: string;
