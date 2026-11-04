@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { paymentService, type CreatePaymentData, type PaymentType, type PaymentMethod } from '../../services/payment.service';
 import { salesService } from '../../services/sales.service';
+import { vehicleService, type VehicleModel } from '../../services/vehicle.service';
+import { stockService } from '../../services/stock.service';
 import { customerService, type Customer } from '../../services/customer.service';
 import { bankAccountsService, type BankAccount } from '../../services/bank-accounts.service';
 import { MainLayout } from '../../components/layout';
@@ -13,9 +15,10 @@ import {
   Save,
   FileText,
   User,
-  Receipt
+  Receipt,
+  Car
 } from 'lucide-react';
-import { AsyncSearchSelect, type SearchSelectOption } from '../../components/ui/search-select';
+import { AsyncSearchSelect, SearchSelect, type SearchSelectOption } from '../../components/ui/search-select';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
 import { useToast } from '../../components/toast';
 
@@ -105,7 +108,8 @@ interface FormData {
   withholdingTaxAmount?: number;
 }
 
-type PaymentMode = 'sale' | 'miscellaneous';
+// booking = จองรถ from this page: picks model + colour, creates the booking and its receipt together
+type PaymentMode = 'sale' | 'miscellaneous' | 'booking';
 
 export default function PaymentFormPage() {
   const navigate = useNavigate();
@@ -146,6 +150,39 @@ export default function PaymentFormPage() {
 
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
+  // จองรถ mode: model + colour + car price (defaults to the model's list price)
+  const [booking, setBooking] = useState({ vehicleModelId: '', preferredExtColor: '', totalAmount: 0 });
+  const [vehicleModels, setVehicleModels] = useState<VehicleModel[]>([]);
+  const [colorOptions, setColorOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (paymentMode !== 'booking' || vehicleModels.length > 0) return;
+    Promise.all([vehicleService.getAllPages(), stockService.getFilterOptions()])
+      .then(([modelsRes, filterRes]) => {
+        setVehicleModels(modelsRes.data);
+        // Stock colours are free text (White/WHITE) — one entry per colour.
+        const seen = new Map<string, string>();
+        for (const c of filterRes.exteriorColors) {
+          const key = c.trim().toLowerCase();
+          if (key && !seen.has(key)) seen.set(key, c.trim());
+        }
+        setColorOptions([...seen.values()].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => addToast('โหลดรายการรุ่นรถไม่สำเร็จ', 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMode]);
+
+  const modelOptions: SearchSelectOption<VehicleModel>[] = useMemo(
+    () =>
+      vehicleModels.map((m) => ({
+        value: m.id,
+        label: `${m.brand} ${m.model}${m.variant ? ` ${m.variant}` : ''}`,
+        description: `ปี ${m.year} • ราคา ฿${Number(m.price).toLocaleString()}`,
+        data: m,
+      })),
+    [vehicleModels]
+  );
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -167,13 +204,13 @@ export default function PaymentFormPage() {
 
   // Reset form when switching payment mode
   useEffect(() => {
-    if (paymentMode === 'miscellaneous') {
+    if (paymentMode === 'miscellaneous' || paymentMode === 'booking') {
       setSaleInfo(null);
       setFormData(prev => ({
         ...prev,
         saleId: '',
         customerId: customerInfo?.id || '',
-        paymentType: 'MISCELLANEOUS',
+        paymentType: paymentMode === 'booking' ? 'DEPOSIT' : 'MISCELLANEOUS',
         amount: 0,
         receivingBankAccountId: '',
         receivingBank: '',
@@ -338,8 +375,15 @@ export default function PaymentFormPage() {
       newErrors.saleId = 'กรุณาเลือกการขาย';
     }
 
-    if (paymentMode === 'miscellaneous' && !formData.customerId) {
+    if ((paymentMode === 'miscellaneous' || paymentMode === 'booking') && !formData.customerId) {
       newErrors.customerId = 'กรุณาเลือกลูกค้า';
+    }
+
+    if (paymentMode === 'booking') {
+      if (!booking.vehicleModelId) newErrors.vehicleModelId = 'กรุณาเลือกรุ่นรถที่จอง';
+      if (!booking.preferredExtColor) newErrors.preferredExtColor = 'กรุณาเลือกสีที่จอง';
+      if (!(booking.totalAmount > 0)) newErrors.bookingTotal = 'กรุณาระบุราคารถ';
+      else if (formData.amount > booking.totalAmount) newErrors.amount = 'เงินจองต้องไม่เกินราคารถ';
     }
 
     if (paymentMode === 'miscellaneous' && !formData.description?.trim()) {
@@ -399,6 +443,24 @@ export default function PaymentFormPage() {
       createData.saleId = formData.saleId;
     }
 
+    if (paymentMode === 'booking') {
+      await executeQuery(
+        paymentService
+          .createBooking({
+            ...createData,
+            vehicleModelId: booking.vehicleModelId,
+            preferredExtColor: booking.preferredExtColor,
+            totalAmount: booking.totalAmount,
+          })
+          .then((payment) => {
+            addToast('บันทึกการจองและออกใบเสร็จสำเร็จ', 'success');
+            navigate(`/payments/${payment.id}`);
+          })
+      );
+      setSaving(false);
+      return;
+    }
+
     await executeQuery(
       paymentService.create(createData).then((payment) => {
         addToast('บันทึกการชำระเงินสำเร็จ', 'success');
@@ -420,7 +482,12 @@ export default function PaymentFormPage() {
     }
   };
 
-  const currentPaymentTypeOptions = paymentMode === 'sale' ? SALE_PAYMENT_TYPE_OPTIONS : MISC_PAYMENT_TYPE_OPTIONS;
+  const currentPaymentTypeOptions =
+    paymentMode === 'booking'
+      ? SALE_PAYMENT_TYPE_OPTIONS.filter((o) => o.value === 'DEPOSIT')
+      : paymentMode === 'sale'
+        ? SALE_PAYMENT_TYPE_OPTIONS
+        : MISC_PAYMENT_TYPE_OPTIONS;
 
   if (loading) {
     return (
@@ -481,6 +548,18 @@ export default function PaymentFormPage() {
                   <DollarSign className="h-6 w-6 mx-auto mb-2" />
                   <div className="font-medium">รายการทั่วไป</div>
                   <div className="text-sm text-gray-500">บันทึกรายรับทั่วไปที่ไม่เกี่ยวกับการขาย</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode('booking')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 transition-colors ${paymentMode === 'booking'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                  <Car className="h-6 w-6 mx-auto mb-2" />
+                  <div className="font-medium">จองรถ (เลือกรุ่น/สี)</div>
+                  <div className="text-sm text-gray-500">รับเงินจองพร้อมเลือกรุ่นและสี ยังไม่ต้องมี VIN</div>
                 </button>
               </div>
             </div>
@@ -555,6 +634,78 @@ export default function PaymentFormPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Booking (จองรถ): customer + model + colour */}
+          {paymentMode === 'booking' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center">
+                <Car className="h-5 w-5 mr-2 text-blue-600" />
+                ข้อมูลการจอง
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <AsyncSearchSelect<CustomerInfo>
+                    value={formData.customerId}
+                    onChange={handleCustomerSelect}
+                    loadOptions={loadCustomerOptions}
+                    label="ค้นหาลูกค้า"
+                    required
+                    placeholder="พิมพ์ชื่อลูกค้า หรือรหัสลูกค้า..."
+                    error={errors.customerId}
+                    emptyMessage="ไม่พบลูกค้า"
+                    minSearchLength={2}
+                  />
+                </div>
+                <SearchSelect<VehicleModel>
+                  value={booking.vehicleModelId}
+                  onChange={(value, option) =>
+                    setBooking((prev) => ({
+                      ...prev,
+                      vehicleModelId: value,
+                      totalAmount: option?.data ? Number(option.data.price) || prev.totalAmount : prev.totalAmount,
+                    }))
+                  }
+                  options={modelOptions}
+                  label="รุ่นรถที่จอง"
+                  required
+                  placeholder="ค้นหารุ่นรถ..."
+                  error={errors.vehicleModelId}
+                  emptyMessage="ไม่พบรุ่นรถ"
+                />
+                <SearchSelect<string>
+                  value={booking.preferredExtColor}
+                  onChange={(value) => setBooking((prev) => ({ ...prev, preferredExtColor: value }))}
+                  options={colorOptions.map((c) => ({ value: c, label: c }))}
+                  label="สีภายนอกที่จอง"
+                  required
+                  placeholder="เลือกสี..."
+                  error={errors.preferredExtColor}
+                  emptyMessage="ไม่พบสี"
+                />
+                <div>
+                  <label htmlFor="bookingTotal" className="block text-sm font-medium text-gray-700 mb-1">
+                    ราคารถ (บาท) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="bookingTotal"
+                    type="number"
+                    value={booking.totalAmount || ''}
+                    onChange={(e) =>
+                      setBooking((prev) => ({ ...prev, totalAmount: Number.parseFloat(e.target.value) || 0 }))
+                    }
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.bookingTotal ? 'border-red-500' : 'border-gray-300'}`}
+                    min="0"
+                    step="0.01"
+                  />
+                  {errors.bookingTotal && <p className="text-sm text-red-500 mt-1">{errors.bookingTotal}</p>}
+                </div>
+                <p className="md:col-span-2 text-xs text-gray-500">
+                  บันทึกแล้วระบบจะสร้างรายการจอง (ยังไม่ผูก VIN) ที่หน้าการขายให้อัตโนมัติ — ส่วนลด/ไฟแนนซ์
+                  และเลข VIN ไปแก้ไขต่อที่หน้ารายละเอียดการขายได้
+                </p>
+              </div>
             </div>
           )}
 
@@ -873,7 +1024,7 @@ export default function PaymentFormPage() {
               )}
 
               {/* Notes (for sale mode, description is already captured for misc mode) */}
-              {paymentMode === 'sale' && (
+              {(paymentMode === 'sale' || paymentMode === 'booking') && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     หมายเหตุ
@@ -901,7 +1052,7 @@ export default function PaymentFormPage() {
             </button>
             <button
               type="submit"
-              disabled={saving || (paymentMode === 'sale' && !formData.saleId) || (paymentMode === 'miscellaneous' && !formData.customerId)}
+              disabled={saving || (paymentMode === 'sale' && !formData.saleId) || (paymentMode !== 'sale' && !formData.customerId)}
               className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="h-5 w-5 mr-2" />

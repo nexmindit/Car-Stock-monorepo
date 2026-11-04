@@ -232,6 +232,20 @@ class PaymentService {
   /**
    * Create new payment
    */
+  /** จองรถ: creates the booking (model + colour, no VIN) and its deposit receipt. */
+  async createBooking(
+    data: Omit<CreatePaymentData, 'saleId' | 'paymentType'> & {
+      vehicleModelId: string;
+      preferredExtColor: string;
+      totalAmount: number;
+    }
+  ): Promise<Payment> {
+    const { paymentType: _ignored, actualReceivedDate: _d, netReceivedAmount: _n, ...body } =
+      data as typeof data & { paymentType?: string };
+    const response = await api.post<ApiResponse<Payment>>(`${this.baseUrl}/booking`, body);
+    return response.data;
+  }
+
   async create(data: CreatePaymentData): Promise<Payment> {
     const response = await api.post<ApiResponse<Payment>>(this.baseUrl, data);
     return response.data;
