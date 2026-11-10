@@ -420,6 +420,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         endDate,
         status: query.status as any,
         salespersonId: query.salespersonId,
+        vehicleType: query.vehicleType as any,
       });
 
       const dateRange =
@@ -450,6 +451,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         endDate: t.Optional(t.String()),
         status: t.Optional(t.String()),
         salespersonId: t.Optional(t.String()),
+        vehicleType: t.Optional(t.String()),
       }),
     }
   )
