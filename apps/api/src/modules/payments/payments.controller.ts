@@ -101,6 +101,49 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
       },
     }
   )
+  // Book a car (model + colour, no VIN) and issue its deposit receipt
+  .post(
+    '/booking',
+    async ({ body, set, requester }) => {
+      const payment = await paymentsService.createBookingPayment(body, requester);
+      set.status = 201;
+      return {
+        success: true,
+        data: payment,
+        message: 'Booking and payment recorded successfully',
+      };
+    },
+    {
+      beforeHandle: [authMiddleware, requirePermission('PAYMENT_CREATE')],
+      body: t.Object({
+        customerId: t.String({ minLength: 1 }),
+        vehicleModelId: t.String({ minLength: 1 }),
+        preferredExtColor: t.String({ minLength: 1 }),
+        totalAmount: t.Optional(t.Number({ minimum: 0 })),
+        description: t.Optional(t.String()),
+        paymentDate: t.Optional(t.Union([t.Date(), t.String()])),
+        amount: t.Number({ minimum: 0.01 }),
+        paymentMethod: t.Union([
+          t.Literal('CASH'),
+          t.Literal('BANK_TRANSFER'),
+          t.Literal('CHEQUE'),
+          t.Literal('CREDIT_CARD'),
+        ]),
+        referenceNumber: t.Optional(t.String()),
+        notes: t.Optional(t.String()),
+        receivingBank: t.Optional(t.String()),
+        receivingBankName: t.Optional(t.String()),
+        receivingAccountNumber: t.Optional(t.String()),
+        receivingBranch: t.Optional(t.String()),
+        withholdingTaxAmount: t.Optional(t.Number({ minimum: 0 })),
+      }),
+      detail: {
+        tags: ['Payments'],
+        summary: 'Book a car from the payment page',
+        description: 'Creates a RESERVATION_SALE (model + colour, no VIN) and its DEPOSIT payment.',
+      },
+    }
+  )
   // Create payment
   .post(
     '/',

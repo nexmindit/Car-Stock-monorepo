@@ -362,6 +362,63 @@ export class PaymentsService {
   }
 
   /**
+   * จองรถจากหน้าชำระเงิน: create a RESERVATION_SALE for model + colour (no VIN)
+   * and its DEPOSIT receipt in one call. Accounting books cars from the payment
+   * page instead of creating the sale first. If the receipt fails, the
+   * just-created booking is removed so no orphan booking is left behind.
+   */
+  async createBookingPayment(data: any, currentUser: any) {
+    if (
+      !authService.hasPermission(currentUser.role, 'PAYMENT_CREATE' as any) ||
+      !authService.hasPermission(currentUser.role, 'SALE_CREATE' as any)
+    ) {
+      throw new ForbiddenError();
+    }
+    const { vehicleModelId, preferredExtColor, totalAmount, ...payment } = data;
+    if (!vehicleModelId) throw new BadRequestError('กรุณาเลือกรุ่นรถที่จอง');
+    if (!preferredExtColor?.trim()) throw new BadRequestError('กรุณาเลือกสีที่จอง');
+
+    const model = await db.vehicleModel.findUnique({
+      where: { id: vehicleModelId },
+      select: { id: true, price: true },
+    });
+    if (!model) throw new NotFoundError('Vehicle model');
+    const price = Number(totalAmount) > 0 ? Number(totalAmount) : Number(model.price);
+    if (!(price > 0)) throw new BadRequestError('กรุณาระบุราคารถ');
+    if (Number(payment.amount) > price) {
+      throw new BadRequestError('เงินจองต้องไม่เกินราคารถ');
+    }
+
+    // Lazy import: sales.service is large and payments must not depend on it at load.
+    const { salesService } = await import('../sales/sales.service');
+    const sale = await salesService.createSale(
+      {
+        type: 'RESERVATION_SALE',
+        customerId: payment.customerId,
+        vehicleModelId,
+        preferredExtColor: preferredExtColor.trim(),
+        totalAmount: price,
+        paymentMode: 'CASH',
+        ...(payment.paymentDate ? { createdAt: payment.paymentDate } : {}),
+      },
+      currentUser
+    );
+
+    try {
+      return await this.createPayment(
+        { ...payment, saleId: sale.id, paymentType: 'DEPOSIT' },
+        currentUser
+      );
+    } catch (err) {
+      await db.$transaction([
+        db.activityLog.deleteMany({ where: { entityId: sale.id } }),
+        db.sale.delete({ where: { id: sale.id } }),
+      ]).catch(() => {});
+      throw err;
+    }
+  }
+
+  /**
    * Update payment (ADMIN/ACCOUNTANT only, ACTIVE payments only)
    */
   async updatePayment(id: string, data: any, currentUser: any) {
