@@ -9,6 +9,8 @@
   .meta { margin-bottom: 16px; }
   .model-col { text-align: left; font-weight: bold; }
   .total-col { font-weight: bold; }
+  tr.row-subtotal td { background: #f7f7f7; font-weight: bold; }
+  tr.row-total td { background: #e8eef7; font-weight: bold; border-top: 2px solid #999; }
 </style>
 
 <div class="header">
@@ -43,8 +45,8 @@
     </thead>
     <tbody>
       {{#each rows}}
-        <tr>
-          <td class="model-col">{{modelName}}</td>
+        <tr class="row-{{type}}">
+          <td class="model-col">{{label}}</td>
           {{#each cells}}<td>{{this}}</td>{{/each}}
           <td class="total-col">{{total}}</td>
         </tr>

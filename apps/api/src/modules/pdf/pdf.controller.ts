@@ -11,10 +11,12 @@ import {
   RECEIPT_OFFSET_LIMIT_MM,
   mergeReceiptPrintLayout,
 } from '@car-stock/shared/schemas';
+import { snapshotPanelRows } from '@car-stock/shared/daily-stock-snapshot';
 import { Elysia, t } from 'elysia';
 import { generateContractNumber, getCurrentContractNumberFormat } from '../../lib/contractNumber';
 import { db } from '../../lib/db';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
+import { claimPdfLayout } from '@car-stock/shared/campaign-claim-pdf';
 import { projectCampaignClaimForPdf } from '../reports/campaign-claim-pdf';
 import { reportsService } from '../reports/reports.service';
 import {
@@ -1670,30 +1672,9 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
 
       const panels = [
-        {
-          title: 'ยอดจองคงเหลือ',
-          rows: report.models.map((m) => ({
-            modelName: m.modelName,
-            cells: report.colors.map((c) => m.reservationsByColor[c] || 0),
-            total: m.reservationsTotal,
-          })),
-        },
-        {
-          title: 'สต๊อกคงเหลือ',
-          rows: report.models.map((m) => ({
-            modelName: m.modelName,
-            cells: report.colors.map((c) => m.availableByColor[c] || 0),
-            total: m.availableTotal,
-          })),
-        },
-        {
-          title: 'ยอดที่ต้องสั่งซื้อ',
-          rows: report.models.map((m) => ({
-            modelName: m.modelName,
-            cells: report.colors.map((c) => m.requiredByColor[c] || 0),
-            total: m.requiredTotal,
-          })),
-        },
+        { title: 'ยอดจองคงเหลือ', rows: snapshotPanelRows(report.models, report.colors, 'reservations') },
+        { title: 'สต๊อกคงเหลือ', rows: snapshotPanelRows(report.models, report.colors, 'available') },
+        { title: 'ยอดที่ต้องสั่งซื้อ', rows: snapshotPanelRows(report.models, report.colors, 'required') },
       ];
 
       const pdfBuffer = await pdfService.generateDailyStockSnapshotPdf({
@@ -1798,6 +1779,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         periodLabel,
         brand: report.brand,
         expenseColumns: projected.expenseColumns,
+        layout: claimPdfLayout(projected.expenseColumns.length),
         rows: projected.rows,
         summary: projected.summary,
         printedAt: new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),

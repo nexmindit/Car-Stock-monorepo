@@ -96,6 +96,9 @@ const StockInterestReportPage = React.lazy(() =>
 const PurchaseRequirementReportPage = React.lazy(() =>
   import('./pages/reports').then((m) => ({ default: m.PurchaseRequirementReportPage }))
 );
+const CancelledSalesReportPage = React.lazy(() =>
+  import('./pages/reports').then((m) => ({ default: m.CancelledSalesReportPage }))
+);
 const DailyStockSnapshotPage = React.lazy(() =>
   import('./pages/reports').then((m) => ({ default: m.DailyStockSnapshotPage }))
 );
@@ -533,6 +536,14 @@ function App() {
                       element={
                         <ProtectedRoute allowedRoles={P.REPORT_STOCK}>
                           <PurchaseRequirementReportPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/reports/cancelled-sales"
+                      element={
+                        <ProtectedRoute allowedRoles={[...P.REPORT_SALES, 'ACCOUNTANT']}>
+                          <CancelledSalesReportPage />
                         </ProtectedRoute>
                       }
                     />

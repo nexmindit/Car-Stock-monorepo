@@ -123,3 +123,40 @@ export function projectCampaignClaimForPdf(
     },
   };
 }
+
+/**
+ * Column widths (% of the F14 table) for the claim PDF. Fixed columns keep a
+ * fixed share; whatever is left is split evenly across the formula columns, and
+ * the font steps down as the number of campaigns/formulas grows, so the table
+ * always fits the sheet instead of running off the right edge.
+ */
+export interface ClaimPdfLayout {
+  seq: number;
+  name: number;
+  model: number;
+  vin: number;
+  price: number;
+  total: number;
+  date: number;
+  expense: number;
+  fontPx: number;
+}
+
+export function claimPdfLayout(expenseCount: number): ClaimPdfLayout {
+  const n = Math.max(0, expenseCount);
+  // Shrink the text-heavy columns a little once there are many formula columns.
+  const tight = n > 8;
+  const fixed = {
+    seq: 3,
+    name: tight ? 11 : 13,
+    model: tight ? 9 : 11,
+    vin: tight ? 10 : 11,
+    price: 6,
+    total: 6,
+    date: 6,
+  };
+  const used = Object.values(fixed).reduce((a, b) => a + b, 0);
+  const expense = n > 0 ? Math.round(((100 - used) / n) * 100) / 100 : 0;
+  const fontPx = n <= 6 ? 8 : n <= 10 ? 7 : 6.5;
+  return { ...fixed, expense, fontPx };
+}

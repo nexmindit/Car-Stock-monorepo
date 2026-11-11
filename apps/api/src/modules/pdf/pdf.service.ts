@@ -926,7 +926,11 @@ export class PdfService {
    * Generate Sales Summary Report PDF
    */
   public async generateSalesSummaryReport(data: SalesSummaryReportData): Promise<Buffer> {
-    return this.generatePdf(PdfTemplateType.SALES_SUMMARY_REPORT, data, { landscape: true });
+    // F14 landscape (356×216 mm), same paper as the other finance reports.
+    return this.generatePdf(PdfTemplateType.SALES_SUMMARY_REPORT, data, {
+      width: '356mm',
+      height: '216mm',
+    });
   }
 
   /**
@@ -950,6 +954,14 @@ export class PdfService {
     data: PurchaseRequirementReportData
   ): Promise<Buffer> {
     return this.generatePdf(PdfTemplateType.PURCHASE_REQUIREMENT_REPORT, data);
+  }
+
+  /** รายงานลูกค้ายกเลิก — F14 landscape like the other finance reports. */
+  public async generateCancelledSalesReportPdf(data: unknown): Promise<Buffer> {
+    return this.generatePdf(PdfTemplateType.CANCELLED_SALES_REPORT, data, {
+      width: '356mm',
+      height: '216mm',
+    });
   }
 
   public async generateDailyStockSnapshotPdf(data: unknown): Promise<Buffer> {

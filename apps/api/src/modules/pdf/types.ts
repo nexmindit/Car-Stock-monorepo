@@ -395,6 +395,7 @@ export enum PdfTemplateType {
   MONTHLY_PURCHASES_REPORT = 'monthly-purchases-report',
   CAMPAIGN_REPORT = 'campaign-report',
   CAMPAIGN_CLAIM_MONTHLY = 'campaign-claim-monthly',
+  CANCELLED_SALES_REPORT = 'cancelled-sales-report',
 }
 
 /**
@@ -645,6 +646,8 @@ export interface CampaignClaimReportData {
   brand: string;
   /** Expense-line names; the dynamic columns of the table. */
   expenseColumns: string[];
+  /** Column widths (%) + font size so many formula columns still fit F14. */
+  layout?: import('@car-stock/shared/campaign-claim-pdf').ClaimPdfLayout;
   rows: Array<{
     no: number;
     customerName: string;

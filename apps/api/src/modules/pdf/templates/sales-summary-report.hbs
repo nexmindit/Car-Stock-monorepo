@@ -1,6 +1,8 @@
 <style>
   @page {
-    size: A4 landscape;
+    /* F14 landscape like the other finance reports — 22 columns on A4 printed
+       too small to read (Hia, UAT 8 Oct / update 11 Nov). */
+    size: 356mm 216mm;
     /* The base layout's .page already adds 10mm padding; a @page margin on top
        of that pushes the 297mm page past the printable area and clips the right
        columns. Keep margin 0 here and let .page provide the inset. */
@@ -24,7 +26,7 @@
     /* Must set font-size on the cells directly: the base layout has a
        `th, td { font-size: 13px }` rule that otherwise overrides the table's
        inherited font and makes every value too wide for its column. */
-    font-size: 8px;
+    font-size: 9px;
     /* Wrap long values/headers within the cell rather than overflowing. */
     word-break: break-word;
     overflow-wrap: anywhere;
@@ -47,7 +49,7 @@
   .sub-header-row th {
     background-color: #f0f0f0;
     color: #333;
-    font-size: 9px;
+    font-size: 10px;
   }
   .salesperson-table th, .salesperson-table td { font-size: 10px; padding: 3px 4px; }
 </style>
@@ -77,7 +79,7 @@
 </div>
 
 <div class="section">
-  <table style="font-size: 8px; width: 100%; table-layout: fixed;">
+  <table style="font-size: 9px; width: 100%; table-layout: fixed;">
     <colgroup>
       <col style="width: 3%"><col style="width: 7%"><col style="width: 6%"><col style="width: 5%"><col style="width: 4%"><col style="width: 3%"><col style="width: 5%"><col style="width: 3%"><col style="width: 5%"><col style="width: 5%"><col style="width: 5%"><col style="width: 5%"><col style="width: 6%"><col style="width: 5%"><col style="width: 5%"><col style="width: 4%"><col style="width: 5%"><col style="width: 3%"><col style="width: 3%"><col style="width: 3%"><col style="width: 5%"><col style="width: 5%">
     </colgroup>
@@ -88,7 +90,6 @@
         <th style="width: 8%">เลขเครื่อง</th>
         <th rowspan="2" style="width: 5%">ราคารถ</th>
         <th rowspan="2" style="width: 4%">ส่วนลด<br>ตัวรถ</th>
-        <th rowspan="2" style="width: 4%">ดอกเบี้ย</th>
         <th rowspan="2" style="width: 5%">เงินดาวน์</th>
         <th rowspan="2" style="width: 4%">ส่วนลด<br>ดาวน์</th>
         <th rowspan="2" style="width: 5%">คงเหลือ</th>
@@ -103,6 +104,7 @@
         <th rowspan="2" style="width: 5%">พนักงานขาย</th>
         <th rowspan="2" style="width: 4%">คอมฯ<br>พนักงาน</th>
         <th rowspan="2" style="width: 3%">ค่าใช้จ่าย<br>ขาย</th>
+        <th rowspan="2" style="width: 4%">ดอกเบี้ย<br>ธนาคาร</th>
         <th rowspan="2" style="width: 3%">ค่าเบี้ย<br>ประกัน</th>
         <th rowspan="2" style="width: 5%">กำไรสุทธิ</th>
         <th rowspan="2" style="width: 5%">หมายเหตุ</th>
@@ -129,9 +131,8 @@
         <td class="text-right">{{formatInt totalAmount}}</td>
         <td class="text-right">
           {{formatInt discountAmount}}
-          {{#if campaignSubsidy}}<br><span style="color: #888; font-size: 7px;">สุทธิ {{formatInt netCarDiscount}}</span>{{/if}}
+          {{#if campaignSubsidy}}<br><span style="color: #888; font-size: 8px;">สุทธิ {{formatInt netCarDiscount}}</span>{{/if}}
         </td>
-        <td class="text-right">{{formatInt interestCost}}</td>
         <td class="text-right">{{formatInt downPayment}}</td>
         <td class="text-right">{{formatInt downPaymentDiscount}}</td>
         <td class="text-right">{{formatInt remainingAmount}}</td>
@@ -146,6 +147,7 @@
         <td style="word-break: break-word;">{{salesperson}}</td>
         <td class="text-right">{{formatInt salesCommission}}</td>
         <td class="text-right">{{formatInt salesExpense}}</td>
+        <td class="text-right">{{formatInt interestCost}}</td>
         <td class="text-right">{{formatInt insurancePremium}}</td>
         <td class="text-right">{{formatInt netProfit}}</td>
         <td style="white-space: pre-wrap; word-break: break-word;">{{stockNotes}}</td>
@@ -156,9 +158,8 @@
         <td class="text-right">{{formatInt summary.totalAmount}}</td>
         <td class="text-right">
           {{formatInt summary.totalCarDiscount}}
-          {{#if summary.totalCampaignSubsidy}}<br><span style="color: #888; font-size: 7px;">สุทธิ {{formatInt summary.totalNetCarDiscount}}</span>{{/if}}
+          {{#if summary.totalCampaignSubsidy}}<br><span style="color: #888; font-size: 8px;">สุทธิ {{formatInt summary.totalNetCarDiscount}}</span>{{/if}}
         </td>
-        <td class="text-right"></td>
         <td class="text-right">{{formatInt summary.totalDownPayment}}</td>
         <td class="text-right">{{formatInt summary.totalDownPaymentDiscount}}</td>
         <td class="text-right">{{formatInt summary.totalRemaining}}</td>
@@ -173,6 +174,7 @@
         <td></td>
         <td class="text-right">{{formatInt summary.totalSalesCommission}}</td>
         <td class="text-right">{{formatInt summary.totalSalesExpense}}</td>
+        <td class="text-right">{{formatInt summary.totalInterestCost}}</td>
         <td class="text-right">{{formatInt summary.totalInsurancePremium}}</td>
         <td class="text-right">{{formatInt summary.totalNetProfit}}</td>
         <td></td>

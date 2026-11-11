@@ -8,6 +8,10 @@ import '../../types/context.d';
 import { db } from '../../lib/db';
 
 // Helper to get company header from settings or default
+/** Cancelled-sales refund list: sales reporting roles + finance (ACCOUNTANT), who pay the refunds. */
+const canViewCancelledSales = (role: string) =>
+  authService.hasPermission(role as any, 'REPORT_SALES') || role === 'ACCOUNTANT';
+
 async function getCompanyHeader(): Promise<any> {
   const settings = await db.companySettings.findFirst();
   if (settings) {
@@ -337,6 +341,65 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       set.headers['Content-Type'] = 'application/pdf';
       set.headers['Content-Disposition'] = `attachment; filename="profit-loss-report.pdf"`;
 
+      return pdfBuffer;
+    },
+    {
+      beforeHandle: authMiddleware,
+      query: t.Object({
+        startDate: t.Optional(t.String()),
+        endDate: t.Optional(t.String()),
+      }),
+    }
+  )
+  // ============================================
+  // Cancelled Sales Report (รายงานลูกค้ายกเลิก)
+  // ============================================
+  .get(
+    '/cancelled-sales',
+    async ({ query, set, requester }) => {
+      if (!canViewCancelledSales(requester!.role)) {
+        set.status = 403;
+        return { success: false, error: 'Forbidden', message: 'คุณไม่มีสิทธิ์ดูรายงานนี้' };
+      }
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate + 'T23:59:59.999Z') : undefined;
+      const result = await reportsService.getCancelledSalesReport({ startDate, endDate });
+      return { success: true, data: result };
+    },
+    {
+      beforeHandle: authMiddleware,
+      query: t.Object({
+        startDate: t.Optional(t.String()),
+        endDate: t.Optional(t.String()),
+      }),
+      detail: { tags: ['Reports'], summary: 'Cancelled sales (refund list)' },
+    }
+  )
+  .get(
+    '/cancelled-sales/pdf',
+    async ({ query, set, requester }) => {
+      if (!canViewCancelledSales(requester!.role)) {
+        set.status = 403;
+        return 'Forbidden';
+      }
+      const startDate = query.startDate ? new Date(query.startDate) : undefined;
+      const endDate = query.endDate ? new Date(query.endDate + 'T23:59:59.999Z') : undefined;
+      const result = await reportsService.getCancelledSalesReport({ startDate, endDate });
+      const dateRange =
+        startDate && endDate
+          ? `${formatThaiDate(startDate, 'short')} - ${formatThaiDate(endDate, 'short')}`
+          : 'ทั้งหมด';
+      const header = await getCompanyHeader();
+      if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
+      const pdfBuffer = await pdfService.generateCancelledSalesReportPdf({
+        header,
+        dateRange,
+        rows: result.rows,
+        summary: result.summary,
+        printedAt: new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }),
+      });
+      set.headers['Content-Type'] = 'application/pdf';
+      set.headers['Content-Disposition'] = 'attachment; filename="cancelled-sales-report.pdf"';
       return pdfBuffer;
     },
     {

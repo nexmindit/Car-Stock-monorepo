@@ -1,0 +1,100 @@
+<style>
+  @page { size: 356mm 216mm; margin: 8mm; }
+  .cx-title { text-align: center; font-size: 16px; font-weight: bold; margin: 6px 0 2px; }
+  .cx-range { text-align: center; font-size: 11px; margin-bottom: 8px; }
+  .cx-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+  .cx-table th, .cx-table td {
+    border: 1px solid #555;
+    padding: 3px 5px;
+    vertical-align: top;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+  }
+  .cx-table th { background: #003366 !important; color: #fff !important; text-align: center; font-weight: bold; }
+  .cx-table .tc { text-align: center; }
+  .cx-table .tr { text-align: right; }
+  .cx-table .sub { color: #555; font-size: 9px; }
+  .cx-table tfoot td { background: #e8eef7 !important; font-weight: bold; }
+  .cx-table tr { page-break-inside: avoid; break-inside: avoid; }
+  .cx-sign { display: flex; justify-content: space-around; margin-top: 24px; font-size: 11px; page-break-inside: avoid; }
+  .cx-printed { margin-top: 12px; font-size: 9px; color: #666; text-align: right; }
+</style>
+
+<div class="header">
+  <div class="header-logo">
+    <img src="{{header.logoBase64}}" alt="Logo">
+  </div>
+  <div class="header-info">
+    <div class="company-name-wrapper">
+      <div class="company-name">{{header.companyName}}</div>
+      <div class="header-line"></div>
+      <div class="header-address">
+        {{header.address1}}<br>
+        {{header.address2}}<br>
+        {{header.phone}}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="cx-title">รายงานลูกค้ายกเลิก (สำหรับคืนเงิน)</div>
+<div class="cx-range">วันที่ยกเลิก: {{dateRange}}</div>
+
+<table class="cx-table">
+  <colgroup>
+    <col style="width: 4%">
+    <col style="width: 10%">
+    <col style="width: 17%">
+    <col style="width: 17%">
+    <col style="width: 8%">
+    <col style="width: 8%">
+    <col style="width: 9%">
+    <col style="width: 9%">
+    <col style="width: 18%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th>ลำดับ</th>
+      <th>เลขที่ใบขาย</th>
+      <th>ชื่อลูกค้า / โทร.</th>
+      <th>รถที่จอง / ซื้อ</th>
+      <th>วันที่จอง</th>
+      <th>วันที่ยกเลิก</th>
+      <th>ราคารถ</th>
+      <th>รับเงินแล้ว<br>(ยอดคืน)</th>
+      <th>เหตุผล / พนักงานขาย</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#if rows.length}}
+    {{#each rows}}
+    <tr>
+      <td class="tc">{{add @index 1}}</td>
+      <td class="tc">{{saleNumber}}</td>
+      <td>{{customerName}}{{#if customerPhone}}<br><span class="sub">{{customerPhone}}</span>{{/if}}</td>
+      <td>{{vehicleName}}{{#if color}}<br><span class="sub">สี {{color}}</span>{{/if}}</td>
+      <td class="tc">{{formatThaiDate saleDate 'numeric'}}</td>
+      <td class="tc">{{formatThaiDate cancelledAt 'numeric'}}</td>
+      <td class="tr">{{formatCurrency totalAmount false}}</td>
+      <td class="tr"><strong>{{formatCurrency paidAmount false}}</strong></td>
+      <td>{{#if reason}}{{reason}}<br>{{/if}}<span class="sub">{{salesperson}}</span></td>
+    </tr>
+    {{/each}}
+    {{else}}
+    <tr><td colspan="9" class="tc">ไม่มีลูกค้ายกเลิกในช่วงเวลานี้</td></tr>
+    {{/if}}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" class="tr">รวม {{summary.count}} ราย</td>
+      <td class="tr">{{formatCurrency summary.totalPaid false}}</td>
+      <td></td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="cx-sign">
+  <div>ลงชื่อ..........................................................ผู้จัดทำ</div>
+  <div>ลงชื่อ..........................................................ผู้อนุมัติคืนเงิน</div>
+</div>
+<div class="cx-printed">พิมพ์เมื่อ: {{printedAt}}</div>

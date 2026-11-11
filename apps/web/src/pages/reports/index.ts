@@ -9,3 +9,4 @@ export { DailyStockSnapshotPage } from './DailyStockSnapshotPage';
 export { MonthlyPurchasesReportPage } from './MonthlyPurchasesReportPage';
 export { CampaignClaimReportPage } from './CampaignClaimReportPage';
 export { BankInterestReportPage } from './BankInterestReportPage';
+export { CancelledSalesReportPage } from './CancelledSalesReportPage';
