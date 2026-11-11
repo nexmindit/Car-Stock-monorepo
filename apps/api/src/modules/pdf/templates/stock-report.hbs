@@ -18,14 +18,22 @@
   }
   th {
     background-color: #f0f0f0;
+    color: #333; /* base layout sets th to white text — unreadable on light grey */
     font-weight: bold;
     text-align: center;
     white-space: nowrap;
   }
   .text-right { text-align: right; }
   .text-center { text-align: center; }
+  /* same scheme as sales-summary-report: dark blue header, light sub-header */
   .header-row th {
-    background-color: #e0e0e0;
+    background-color: #003366;
+    color: white;
+    border: 1px solid #002244;
+  }
+  .sub-header-row th {
+    background-color: #f0f0f0;
+    color: #333;
   }
 </style>
 
@@ -92,7 +100,7 @@
         <th colspan="4">ต้นทุน</th>
         <th rowspan="2" style="width: 8%">สถานะ</th>
       </tr>
-      <tr class="header-row">
+      <tr class="sub-header-row">
         <th>ภายนอก / ภายใน</th>
         <th>VIN / Engine No.</th>
         <th style="width: 8%">ราคารถ</th>
