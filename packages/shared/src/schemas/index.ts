@@ -905,3 +905,43 @@ export function mergeVehicleCardLayout(saved: unknown): VehicleCardLayout {
     fields,
   };
 }
+
+// ============================================
+// Receipt print offsets (ใบรับเงินชั่วคราว Dot Matrix)
+// ============================================
+
+/** ± mm a whole receipt may be nudged — enough for a tractor set ~3cm off. */
+export const RECEIPT_OFFSET_LIMIT_MM = 50;
+
+const receiptOffset = z.number().min(-RECEIPT_OFFSET_LIMIT_MM).max(RECEIPT_OFFSET_LIMIT_MM);
+
+/**
+ * Saved under print_layouts key 'receipt'. form* = full CSS form on blank
+ * continuous paper (withForm); overlay* = data only on the pre-printed form.
+ * Positive X = right, positive Y = down.
+ */
+export const ReceiptPrintLayoutSchema = z.object({
+  formOffsetX: receiptOffset,
+  formOffsetY: receiptOffset,
+  overlayOffsetX: receiptOffset,
+  overlayOffsetY: receiptOffset,
+});
+export type ReceiptPrintLayout = z.infer<typeof ReceiptPrintLayoutSchema>;
+
+export const DEFAULT_RECEIPT_PRINT_LAYOUT: ReceiptPrintLayout = {
+  formOffsetX: 0,
+  formOffsetY: 0,
+  overlayOffsetX: 0,
+  overlayOffsetY: 0,
+};
+
+/** Saved JSON (any shape) → full layout; invalid/missing keys fall back to 0. */
+export function mergeReceiptPrintLayout(saved: unknown): ReceiptPrintLayout {
+  const s = saved && typeof saved === 'object' ? (saved as Record<string, unknown>) : {};
+  const out = { ...DEFAULT_RECEIPT_PRINT_LAYOUT };
+  for (const key of Object.keys(out) as (keyof ReceiptPrintLayout)[]) {
+    const r = receiptOffset.safeParse(s[key]);
+    if (r.success) out[key] = r.data;
+  }
+  return out;
+}
