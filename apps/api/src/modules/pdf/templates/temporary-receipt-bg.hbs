@@ -95,8 +95,8 @@
 <style>
   :root {
     /* === global calibration (เลื่อนทั้งแผ่น) === */
-    --offset-x: 0mm;
-    --offset-y: 0mm;
+    --offset-x: {{#if offsetX}}{{offsetX}}{{else}}0{{/if}}mm;
+    --offset-y: {{#if offsetY}}{{offsetY}}{{else}}0{{/if}}mm;
 
     /* === ขนาดตัวอักษร === */
     --fs: 12px;
@@ -146,7 +146,8 @@
     top: 36.5mm; left: 161mm; width: 50mm; text-align: left;
   }
   .f-contract {
-    top: 44mm; left: 154mm; width: 50mm; text-align: left;
+    /* 154mm sat on the end of the printed label "เลขที่สัญญา" (SiamK, 3 พ.ย.) */
+    top: 44mm; left: 158.5mm; width: 50mm; text-align: left;
   }
   .f-phone {
     top: 50mm; left: 109mm; width: 50mm; text-align: right;
@@ -204,7 +205,7 @@
   .f-grand-total {
     left: 137mm; width: 50mm; text-align: right;
   }
-  .f-total-paid     { top: 77mm; }
+  .f-total-paid     { top: 75.5mm; } /* 77mm sat on the cell's bottom rule */
   .f-total-late     { top: 83mm; }
   .f-total-discount { top: 90mm; }
   .f-grand-total    { top: 107mm; font-weight: bold; }

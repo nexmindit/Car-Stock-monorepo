@@ -1,4 +1,4 @@
-import type { VehicleCardLayout } from '@car-stock/shared/schemas';
+import type { ReceiptPrintLayout, VehicleCardLayout } from '@car-stock/shared/schemas';
 import { api } from '../lib/api';
 
 export interface CompanySettings {
@@ -39,6 +39,19 @@ class SettingsService {
       '/api/settings/print-layout/vehicle-card'
     );
     return res.data as VehicleCardLayout;
+  }
+
+  async getReceiptPrintLayout(): Promise<ReceiptPrintLayout> {
+    const res = await api.get<ApiResponse<ReceiptPrintLayout>>('/api/settings/print-layout/receipt');
+    return res.data as ReceiptPrintLayout;
+  }
+
+  async saveReceiptPrintLayout(layout: ReceiptPrintLayout): Promise<ReceiptPrintLayout> {
+    const res = await api.put<ApiResponse<ReceiptPrintLayout>>(
+      '/api/settings/print-layout/receipt',
+      layout
+    );
+    return res.data as ReceiptPrintLayout;
   }
 
   async saveVehicleCardLayout(layout: VehicleCardLayout): Promise<VehicleCardLayout> {

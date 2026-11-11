@@ -5,7 +5,12 @@
 
 import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from '@car-stock/shared/constants';
 import { computeDeliveryTotal, sumCustomCustomerCharges } from '@car-stock/shared/finance';
-import { DEFAULT_VEHICLE_CARD_LAYOUT } from '@car-stock/shared/schemas';
+import {
+  DEFAULT_VEHICLE_CARD_LAYOUT,
+  type ReceiptPrintLayout,
+  RECEIPT_OFFSET_LIMIT_MM,
+  mergeReceiptPrintLayout,
+} from '@car-stock/shared/schemas';
 import { Elysia, t } from 'elysia';
 import { generateContractNumber, getCurrentContractNumberFormat } from '../../lib/contractNumber';
 import { db } from '../../lib/db';
@@ -75,7 +80,18 @@ function receiptCarName(sale: any): string {
       : /^[A-Za-z]/.test(color)
         ? `สี ${color}`
         : `สี${color}`;
-  return [vm.brand, vm.model, colorText].filter(Boolean).join(' ');
+  // variant is what tells Q QUINT from Q QOOL — without it staff retyped the model by hand.
+  return [vm.brand, vm.model, vm.variant, colorText].filter(Boolean).join(' ');
+}
+
+/** Saved receipt print offsets (mm) per print style — see /settings/print-layout/receipt. */
+async function loadReceiptOffsets(): Promise<ReceiptPrintLayout> {
+  try {
+    const { settingsService } = await import('../settings/settings.service');
+    return mergeReceiptPrintLayout(await settingsService.getPrintLayout('receipt'));
+  } catch {
+    return mergeReceiptPrintLayout(null);
+  }
 }
 
 // Build paymentMethod block for temporary-receipt templates from a Payment row.
@@ -1292,7 +1308,7 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       set,
     }: {
       params: { paymentId: string };
-      query: { lateFee?: string; withForm?: string; paper?: string };
+      query: { lateFee?: string; withForm?: string; paper?: string; offsetX?: string; offsetY?: string };
       set: any;
     }) => {
       const payment = await db.payment.findUnique({
@@ -1368,9 +1384,14 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
       // (9.5×5.5 in continuous, A4 landscape, or 9×5.5 in overlay).
       // Print calibration, mm. Clamped to a number because it lands inside a
       // <style> block — a raw query string there is a CSS injection.
-      const offsetMm = (raw?: string) => {
-        const n = Number(raw);
-        return Number.isFinite(n) ? Math.max(-30, Math.min(30, n)) : 0;
+      // No ?offsetX/?offsetY → the offsets saved for this print style (each
+      // printer/tractor sits differently; VBeyond's full form printed ~3cm right).
+      const saved = await loadReceiptOffsets();
+      const offsetMm = (raw: string | undefined, fallback: number) => {
+        const n = raw === undefined || raw === '' ? fallback : Number(raw);
+        return Number.isFinite(n)
+          ? Math.max(-RECEIPT_OFFSET_LIMIT_MM, Math.min(RECEIPT_OFFSET_LIMIT_MM, n))
+          : 0;
       };
 
       const html = await pdfService.renderHtml(
@@ -1378,8 +1399,9 @@ export const pdfRoutes = new Elysia({ prefix: '/pdf' })
         {
           ...data,
           paperA4,
-          offsetX: offsetMm(query.offsetX),
-          offsetY: offsetMm(query.offsetY),
+          // A4 goes to an office printer — the dot-matrix offsets do not apply.
+          offsetX: offsetMm(query.offsetX, paperA4 ? 0 : withForm ? saved.formOffsetX : saved.overlayOffsetX),
+          offsetY: offsetMm(query.offsetY, paperA4 ? 0 : withForm ? saved.formOffsetY : saved.overlayOffsetY),
         },
         {
           width: paperA4 ? '297mm' : withForm ? '9.5in' : '9in',

@@ -15,6 +15,7 @@ import { MainLayout } from '../../components/layout';
 import { useToast } from '../../components/toast';
 import { useErrorHandler, useMutationHandler } from '../../hooks/useErrorHandler';
 import { usePermission } from '../../hooks/usePermission';
+import { ReceiptPrintOffsetPanel } from '../../components/payments/ReceiptPrintOffsetPanel';
 import { paymentService } from '../../services/payment.service';
 import type {
   Payment,
@@ -289,6 +290,8 @@ export default function PaymentDetailPage() {
             </div>
           </div>
         </div>
+
+        {payment.status !== 'VOIDED' && <ReceiptPrintOffsetPanel />}
 
         {/* Void Info Banner */}
         {payment.status === 'VOIDED' && (

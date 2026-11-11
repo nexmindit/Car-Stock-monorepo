@@ -87,7 +87,7 @@ describe('temporary-receipt form layout — CARSTOCK01-23 pinfeed tear-off', () 
     expect(toMm(cssDecl(ovl, 'width'))).toBeCloseTo(OVERLAY_WIDTH_MM, 1);
     expect(overlaySource).toMatch(/@page\s*\{[^}]*size:\s*9in\s+5\.5in/s);
     expect(overlaySource).toContain('left: 161mm'); // .f-date
-    expect(overlaySource).toContain('left: 154mm'); // .f-contract
+    expect(overlaySource).toContain('left: 158.5mm'); // .f-contract (moved off the label, SiamK 3 พ.ย.)
     expect(overlaySource).toContain('left: 152mm'); // .f-bank-account
     expect(ovl).not.toMatch(/padding\s*:/);
   });
