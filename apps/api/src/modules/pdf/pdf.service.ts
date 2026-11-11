@@ -926,7 +926,11 @@ export class PdfService {
    * Generate Sales Summary Report PDF
    */
   public async generateSalesSummaryReport(data: SalesSummaryReportData): Promise<Buffer> {
-    return this.generatePdf(PdfTemplateType.SALES_SUMMARY_REPORT, data, { landscape: true });
+    // F14 landscape (356×216 mm), same paper as the other finance reports.
+    return this.generatePdf(PdfTemplateType.SALES_SUMMARY_REPORT, data, {
+      width: '356mm',
+      height: '216mm',
+    });
   }
 
   /**
