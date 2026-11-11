@@ -10,6 +10,7 @@ import type {
   SalesSummaryReportResponse,
   StockInterestReportResponse,
   StockReportResponse,
+  CancelledSalesReportResponse,
 } from '@car-stock/shared/types';
 import { api } from '../lib/api';
 
@@ -239,6 +240,29 @@ class ReportService {
   // ============================================
   // Daily Stock Snapshot (new)
   // ============================================
+  async getCancelledSalesReport(params: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<CancelledSalesReportResponse> {
+    const q = new URLSearchParams();
+    if (params.startDate) q.append('startDate', params.startDate);
+    if (params.endDate) q.append('endDate', params.endDate);
+    const response = await api.get<ApiResponse<CancelledSalesReportResponse>>(
+      `/api/reports/cancelled-sales?${q}`
+    );
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to fetch cancelled sales report');
+    }
+    return response.data;
+  }
+
+  async getCancelledSalesReportPdf(params: { startDate?: string; endDate?: string }): Promise<Blob> {
+    const q = new URLSearchParams();
+    if (params.startDate) q.append('startDate', params.startDate);
+    if (params.endDate) q.append('endDate', params.endDate);
+    return api.getBlob(`/api/reports/cancelled-sales/pdf?${q}`);
+  }
+
   async getDailyStockSnapshot(params: { date: string }): Promise<DailyStockSnapshotResponse> {
     const url = `/api/reports/daily-stock-snapshot?date=${encodeURIComponent(params.date)}`;
     const response = await api.get<ApiResponse<DailyStockSnapshotResponse>>(url);

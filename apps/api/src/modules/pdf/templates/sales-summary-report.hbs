@@ -88,7 +88,6 @@
         <th style="width: 8%">เลขเครื่อง</th>
         <th rowspan="2" style="width: 5%">ราคารถ</th>
         <th rowspan="2" style="width: 4%">ส่วนลด<br>ตัวรถ</th>
-        <th rowspan="2" style="width: 4%">ดอกเบี้ย</th>
         <th rowspan="2" style="width: 5%">เงินดาวน์</th>
         <th rowspan="2" style="width: 4%">ส่วนลด<br>ดาวน์</th>
         <th rowspan="2" style="width: 5%">คงเหลือ</th>
@@ -103,6 +102,7 @@
         <th rowspan="2" style="width: 5%">พนักงานขาย</th>
         <th rowspan="2" style="width: 4%">คอมฯ<br>พนักงาน</th>
         <th rowspan="2" style="width: 3%">ค่าใช้จ่าย<br>ขาย</th>
+        <th rowspan="2" style="width: 4%">ดอกเบี้ย<br>ธนาคาร</th>
         <th rowspan="2" style="width: 3%">ค่าเบี้ย<br>ประกัน</th>
         <th rowspan="2" style="width: 5%">กำไรสุทธิ</th>
         <th rowspan="2" style="width: 5%">หมายเหตุ</th>
@@ -131,7 +131,6 @@
           {{formatInt discountAmount}}
           {{#if campaignSubsidy}}<br><span style="color: #888; font-size: 7px;">สุทธิ {{formatInt netCarDiscount}}</span>{{/if}}
         </td>
-        <td class="text-right">{{formatInt interestCost}}</td>
         <td class="text-right">{{formatInt downPayment}}</td>
         <td class="text-right">{{formatInt downPaymentDiscount}}</td>
         <td class="text-right">{{formatInt remainingAmount}}</td>
@@ -146,6 +145,7 @@
         <td style="word-break: break-word;">{{salesperson}}</td>
         <td class="text-right">{{formatInt salesCommission}}</td>
         <td class="text-right">{{formatInt salesExpense}}</td>
+        <td class="text-right">{{formatInt interestCost}}</td>
         <td class="text-right">{{formatInt insurancePremium}}</td>
         <td class="text-right">{{formatInt netProfit}}</td>
         <td style="white-space: pre-wrap; word-break: break-word;">{{stockNotes}}</td>
@@ -158,7 +158,6 @@
           {{formatInt summary.totalCarDiscount}}
           {{#if summary.totalCampaignSubsidy}}<br><span style="color: #888; font-size: 7px;">สุทธิ {{formatInt summary.totalNetCarDiscount}}</span>{{/if}}
         </td>
-        <td class="text-right"></td>
         <td class="text-right">{{formatInt summary.totalDownPayment}}</td>
         <td class="text-right">{{formatInt summary.totalDownPaymentDiscount}}</td>
         <td class="text-right">{{formatInt summary.totalRemaining}}</td>
@@ -173,6 +172,7 @@
         <td></td>
         <td class="text-right">{{formatInt summary.totalSalesCommission}}</td>
         <td class="text-right">{{formatInt summary.totalSalesExpense}}</td>
+        <td class="text-right">{{formatInt summary.totalInterestCost}}</td>
         <td class="text-right">{{formatInt summary.totalInsurancePremium}}</td>
         <td class="text-right">{{formatInt summary.totalNetProfit}}</td>
         <td></td>

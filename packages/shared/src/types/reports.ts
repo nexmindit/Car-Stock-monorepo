@@ -436,3 +436,28 @@ export interface ReportQueryParams {
   isCalculating?: boolean;
   vehicleType?: string;
 }
+
+// ============================================
+// Cancelled Sales Report (รายงานลูกค้ายกเลิก)
+// ============================================
+
+export interface CancelledSaleRow {
+  id: string;
+  saleNumber: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleName: string;
+  color: string;
+  saleDate: string;
+  cancelledAt: string;
+  totalAmount: number;
+  /** Sum of the sale's ACTIVE receipts — the amount to refund. */
+  paidAmount: number;
+  reason: string;
+  salesperson: string;
+}
+
+export interface CancelledSalesReportResponse {
+  rows: CancelledSaleRow[];
+  summary: { count: number; totalPaid: number };
+}

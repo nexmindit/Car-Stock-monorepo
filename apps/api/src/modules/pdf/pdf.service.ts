@@ -952,6 +952,14 @@ export class PdfService {
     return this.generatePdf(PdfTemplateType.PURCHASE_REQUIREMENT_REPORT, data);
   }
 
+  /** รายงานลูกค้ายกเลิก — F14 landscape like the other finance reports. */
+  public async generateCancelledSalesReportPdf(data: unknown): Promise<Buffer> {
+    return this.generatePdf(PdfTemplateType.CANCELLED_SALES_REPORT, data, {
+      width: '356mm',
+      height: '216mm',
+    });
+  }
+
   public async generateDailyStockSnapshotPdf(data: unknown): Promise<Buffer> {
     return this.generatePdf(PdfTemplateType.DAILY_STOCK_SNAPSHOT, data, {
       landscape: true,

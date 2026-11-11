@@ -1,4 +1,5 @@
-import type { DailyStockSnapshotModel, DailyStockSnapshotResponse } from '@car-stock/shared/types';
+import { type SnapshotPanelKind, snapshotPanelRows } from '@car-stock/shared/daily-stock-snapshot';
+import type { DailyStockSnapshotResponse } from '@car-stock/shared/types';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MainLayout } from '../../components/layout';
@@ -20,24 +21,14 @@ export function DailyStockSnapshotPage(): React.ReactElement {
 
   const handleExport = () => {
     if (!data) return;
-    const makeRows = (kind: 'reservations' | 'available' | 'required') =>
-      data.models.map((m: DailyStockSnapshotModel) => {
-        const row: Record<string, string | number> = { แบบรถ: m.modelName };
-        data.colors.forEach((c) => {
-          const v =
-            kind === 'reservations'
-              ? m.reservationsByColor[c]
-              : kind === 'available'
-                ? m.availableByColor[c]
-                : m.requiredByColor[c];
-          row[c] = v ?? 0;
+    // Same rows as the table/PDF, including รวม <รุ่น> and รวมทั้งหมด.
+    const makeRows = (kind: SnapshotPanelKind) =>
+      snapshotPanelRows(data.models, data.colors, kind).map((r) => {
+        const row: Record<string, string | number> = { แบบรถ: r.label };
+        data.colors.forEach((c, ci) => {
+          row[c] = r.cells[ci];
         });
-        row.Total =
-          kind === 'reservations'
-            ? m.reservationsTotal
-            : kind === 'available'
-              ? m.availableTotal
-              : m.requiredTotal;
+        row.Total = r.total;
         return row;
       });
 
@@ -92,12 +83,7 @@ export function DailyStockSnapshotPage(): React.ReactElement {
     );
   }
 
-  const renderPanel = (
-    title: string,
-    getCell: (m: DailyStockSnapshotModel, c: string) => number,
-    getTotal: (m: DailyStockSnapshotModel) => number,
-    cellClass?: (n: number) => string
-  ) => (
+  const renderPanel = (title: string, kind: SnapshotPanelKind, cellClass?: (n: number) => string) => (
     <div className="mb-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-3">{title}</h2>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
@@ -114,21 +100,27 @@ export function DailyStockSnapshotPage(): React.ReactElement {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {data.models.map((m) => (
-              <tr key={m.vehicleModelId} className="hover:bg-gray-50">
-                <td className="px-3 py-2 font-medium">{m.modelName}</td>
-                {data.colors.map((c) => {
-                  const n = getCell(m, c) || 0;
-                  return (
-                    <td
-                      key={c}
-                      className={`px-3 py-2 text-center ${cellClass ? cellClass(n) : ''}`}
-                    >
-                      {n || ''}
-                    </td>
-                  );
-                })}
-                <td className="px-3 py-2 text-center font-semibold">{getTotal(m)}</td>
+            {snapshotPanelRows(data.models, data.colors, kind).map((r) => (
+              <tr
+                key={r.key}
+                className={
+                  r.type === 'total'
+                    ? 'bg-blue-50 font-bold border-t-2 border-gray-300'
+                    : r.type === 'subtotal'
+                      ? 'bg-gray-50 font-semibold'
+                      : 'hover:bg-gray-50'
+                }
+              >
+                <td className={`px-3 py-2 ${r.type === 'model' ? 'font-medium' : ''}`}>{r.label}</td>
+                {r.cells.map((n, ci) => (
+                  <td
+                    key={data.colors[ci]}
+                    className={`px-3 py-2 text-center ${r.type === 'model' && cellClass ? cellClass(n) : ''}`}
+                  >
+                    {r.type === 'model' ? n || '' : n}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-center font-semibold">{r.total}</td>
               </tr>
             ))}
           </tbody>
@@ -197,21 +189,10 @@ export function DailyStockSnapshotPage(): React.ReactElement {
           </div>
         </div>
 
-        {renderPanel(
-          'ยอดจองคงเหลือ',
-          (m, c) => m.reservationsByColor[c],
-          (m) => m.reservationsTotal
-        )}
-        {renderPanel(
-          'สต๊อกคงเหลือ',
-          (m, c) => m.availableByColor[c],
-          (m) => m.availableTotal
-        )}
-        {renderPanel(
-          'ยอดที่ต้องสั่งซื้อ',
-          (m, c) => m.requiredByColor[c],
-          (m) => m.requiredTotal,
-          (n) => (n > 0 ? 'bg-orange-50 text-orange-800' : '')
+        {renderPanel('ยอดจองคงเหลือ', 'reservations')}
+        {renderPanel('สต๊อกคงเหลือ', 'available')}
+        {renderPanel('ยอดที่ต้องสั่งซื้อ', 'required', (n) =>
+          n > 0 ? 'bg-orange-50 text-orange-800' : ''
         )}
 
         {data.unassignedReservations > 0 && (

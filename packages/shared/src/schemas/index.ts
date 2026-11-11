@@ -674,6 +674,8 @@ export const DailyStockSnapshotQuerySchema = z.object({
 export const DailyStockSnapshotModelSchema = z.object({
   vehicleModelId: z.string(),
   modelName: z.string(),
+  /** brand + model without variant — rows sharing it get a "รวม" subtotal */
+  familyName: z.string().optional(),
   reservationsByColor: z.record(z.string(), z.number()),
   reservationsTotal: z.number(),
   availableByColor: z.record(z.string(), z.number()),

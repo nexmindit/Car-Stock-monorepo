@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { snapshotPanelRows } from '@car-stock/shared/daily-stock-snapshot';
 import { buildDailySnapshot } from '../modules/reports/reports.service';
 
 type ReservationFixture = { vehicleModelId: string | null; modelName: string; color: string };
@@ -83,5 +84,39 @@ describe('buildDailySnapshot pivot', () => {
     expect(result.colors).toEqual([]);
     expect(result.models).toEqual([]);
     expect(result.grand).toEqual({ reservations: 0, available: 0, demo: 0, required: 0 });
+  });
+});
+
+
+describe('snapshotPanelRows — รวมต่อตระกูลรุ่น + รวมทั้งหมด', () => {
+  const m = (id: string, modelName: string, familyName: string, avail: Record<string, number>) => ({
+    vehicleModelId: id,
+    modelName,
+    familyName,
+    reservationsByColor: {},
+    reservationsTotal: 0,
+    availableByColor: avail,
+    availableTotal: Object.values(avail).reduce((a, b) => a + b, 0),
+    requiredByColor: {},
+    requiredTotal: 0,
+  });
+
+  it('family subtotal only for multi-variant families; grand total per colour', () => {
+    const rows = snapshotPanelRows(
+      [
+        m('v1', 'CHERY V23 Plus', 'CHERY V23', { Grey: 1 }),
+        m('q2', 'CHERY Q QUINT', 'CHERY Q', { White: 3, Grey: 1 }),
+        m('q1', 'CHERY Q QOOL', 'CHERY Q', { White: 2, Pink: 1 }),
+      ],
+      ['Grey', 'Pink', 'White'],
+      'available'
+    );
+    expect(rows.map((r) => [r.type, r.label, r.cells, r.total])).toEqual([
+      ['model', 'CHERY Q QOOL', [0, 1, 2], 3],
+      ['model', 'CHERY Q QUINT', [1, 0, 3], 4],
+      ['subtotal', 'รวม CHERY Q', [1, 1, 5], 7],
+      ['model', 'CHERY V23 Plus', [1, 0, 0], 1],
+      ['total', 'รวมทั้งหมด', [2, 1, 5], 8],
+    ]);
   });
 });

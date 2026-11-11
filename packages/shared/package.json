@@ -11,7 +11,8 @@
     "./constants": "./src/constants/index.ts",
     "./formulas": "./src/formulas/index.ts",
     "./finance": "./src/finance/index.ts",
-    "./campaign-claim-pdf": "./src/campaign-claim-pdf.ts"
+    "./campaign-claim-pdf": "./src/campaign-claim-pdf.ts",
+    "./daily-stock-snapshot": "./src/daily-stock-snapshot.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

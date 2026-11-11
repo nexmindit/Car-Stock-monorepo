@@ -23,7 +23,19 @@
   ยี่ห้อ: <strong>{{brand}}</strong>
 </div>
 
-<table class="claim-table">
+<table class="claim-table" style="font-size: {{layout.fontPx}}px;">
+  {{!-- Widths from claimPdfLayout: fixed columns keep their share, formula
+       columns split the rest evenly so many campaigns still fit F14. --}}
+  <colgroup>
+    <col style="width: {{layout.seq}}%">
+    <col style="width: {{layout.name}}%">
+    <col style="width: {{layout.model}}%">
+    <col style="width: {{layout.vin}}%">
+    <col style="width: {{layout.price}}%">
+    {{#each expenseColumns}}<col style="width: {{../layout.expense}}%">{{/each}}
+    <col style="width: {{layout.total}}%">
+    <col style="width: {{layout.date}}%">
+  </colgroup>
   <thead>
     <tr>
       <th>ลำดับ</th>
@@ -94,6 +106,7 @@
   @page { size: 356mm 216mm; margin: 8mm; }
   .claim-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     font-size: 8px;
     line-height: 1.2;
@@ -104,14 +117,15 @@
     border: 1px solid #374151;
     padding: 1px 3px;
     vertical-align: middle;
-    font-size: 8px;
+    font-size: inherit;
+    overflow-wrap: anywhere;
   }
   .claim-table th {
     background: #f3f4f6 !important;
     color: #111827 !important;
     font-weight: bold;
     text-align: center;
-    font-size: 8px;
+    font-size: inherit;
   }
   .claim-table .tc { text-align: center; }
   .claim-table .tr { text-align: right; }

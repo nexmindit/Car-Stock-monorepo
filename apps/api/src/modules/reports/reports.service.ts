@@ -935,6 +935,7 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
   const totalCostSum = sumField('totalCost');
   const totalSalesCommission = sumField('salesCommission');
   const totalSalesExpense = sumField('salesExpense');
+  const totalInterestCost = sumField('interestCost');
   const totalInsurancePremium = sumField('insurancePremium');
   const totalNetProfit = sumField('netProfit');
   const totalCampaignSubsidy = sumField('campaignSubsidy');
@@ -1064,6 +1065,7 @@ export async function getSalesSummaryReport(params: SalesSummaryParams) {
       totalCostSum,
       totalSalesCommission,
       totalSalesExpense,
+      totalInterestCost,
       totalInsurancePremium,
       totalNetProfit,
       saleVatNet: Math.round(saleVat.net * 100) / 100,
@@ -1496,12 +1498,14 @@ export async function getPurchaseRequirementReport(params: PurchaseRequirementPa
 export interface DailySnapshotInputReservation {
   vehicleModelId: string | null;
   modelName: string;
+  familyName?: string;
   color: string;
 }
 
 export interface DailySnapshotInputStock {
   vehicleModelId: string;
   modelName: string;
+  familyName?: string;
   color: string;
   status: 'AVAILABLE' | 'DEMO';
 }
@@ -1529,18 +1533,20 @@ export function buildDailySnapshot(args: {
     {
       vehicleModelId: string;
       modelName: string;
+      familyName?: string;
       reservationsByColor: Record<string, number>;
       availableByColor: Record<string, number>;
       demoByColor: Record<string, number>;
     }
   >();
 
-  const ensureModel = (id: string, name: string) => {
+  const ensureModel = (id: string, name: string, familyName?: string) => {
     let m = modelMap.get(id);
     if (!m) {
       m = {
         vehicleModelId: id,
         modelName: name,
+        ...(familyName ? { familyName } : {}),
         reservationsByColor: {},
         availableByColor: {},
         demoByColor: {},
@@ -1556,12 +1562,12 @@ export function buildDailySnapshot(args: {
       unassignedReservations += 1;
       continue;
     }
-    const m = ensureModel(r.vehicleModelId, r.modelName);
+    const m = ensureModel(r.vehicleModelId, r.modelName, r.familyName);
     m.reservationsByColor[r.color] = (m.reservationsByColor[r.color] || 0) + 1;
   }
 
   for (const s of stocks) {
-    const m = ensureModel(s.vehicleModelId, s.modelName);
+    const m = ensureModel(s.vehicleModelId, s.modelName, s.familyName);
     if (s.status === 'AVAILABLE') {
       m.availableByColor[s.color] = (m.availableByColor[s.color] || 0) + 1;
     } else {
@@ -1634,12 +1640,14 @@ export async function getDailyStockSnapshot(params: { date: Date }) {
     modelName: r.vehicleModel
       ? `${r.vehicleModel.brand} ${r.vehicleModel.model}${r.vehicleModel.variant ? ' ' + r.vehicleModel.variant : ''}`
       : '',
+    familyName: r.vehicleModel ? `${r.vehicleModel.brand} ${r.vehicleModel.model}` : undefined,
     color: r.preferredExtColor || 'ไม่ระบุสี',
   }));
 
   const inputStocks: DailySnapshotInputStock[] = stocks.map((s) => ({
     vehicleModelId: s.vehicleModel.id,
     modelName: `${s.vehicleModel.brand} ${s.vehicleModel.model}${s.vehicleModel.variant ? ' ' + s.vehicleModel.variant : ''}`,
+    familyName: `${s.vehicleModel.brand} ${s.vehicleModel.model}`,
     color: s.exteriorColor,
     status: s.status as 'AVAILABLE' | 'DEMO',
   }));
@@ -1649,6 +1657,70 @@ export async function getDailyStockSnapshot(params: { date: Date }) {
     stocks: inputStocks,
     date: params.date.toISOString().split('T')[0],
   });
+}
+
+// ============================================
+// Cancelled Sales Report (รายงานลูกค้ายกเลิก)
+// ============================================
+
+/**
+ * Cancelled sales for finance to refund customers. Cancel date = the
+ * sale_history row that moved the sale to CANCELLED (fallback updatedAt);
+ * the range filters on that date. "รับเงินแล้ว" sums the sale's ACTIVE
+ * receipts — the amount to return. The VIN is gone after a cancel (the stock
+ * is released), so the car shown is the booked/linked model.
+ */
+export async function getCancelledSalesReport(params: { startDate?: Date; endDate?: Date }) {
+  const sales = await db.sale.findMany({
+    where: { status: 'CANCELLED' as SaleStatus },
+    include: {
+      customer: { select: { name: true, phone: true, code: true } },
+      vehicleModel: { select: { brand: true, model: true, variant: true } },
+      createdBy: { select: { firstName: true, lastName: true } },
+      payments: { where: { status: 'ACTIVE' as PaymentStatus }, select: { amount: true } },
+      history: {
+        where: { toStatus: 'CANCELLED' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { createdAt: true, notes: true },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  const rows = sales
+    .map((s) => {
+      const cancelledAt = s.history[0]?.createdAt ?? s.updatedAt;
+      const vm = s.vehicleModel;
+      return {
+        id: s.id,
+        saleNumber: s.saleNumber,
+        customerName: s.customer?.name ?? '-',
+        customerPhone: s.customer?.phone ?? '',
+        vehicleName: vm ? [vm.brand, vm.model, vm.variant].filter(Boolean).join(' ') : '-',
+        color: s.preferredExtColor ?? '',
+        saleDate: s.createdAt.toISOString(),
+        cancelledAt: cancelledAt.toISOString(),
+        totalAmount: toNumber(s.totalAmount),
+        paidAmount: s.payments.reduce((sum, p) => sum + toNumber(p.amount), 0),
+        reason: s.cancellationReason || s.history[0]?.notes || '',
+        salesperson: s.createdBy ? `${s.createdBy.firstName} ${s.createdBy.lastName}`.trim() : '-',
+      };
+    })
+    .filter((r) => {
+      const t = new Date(r.cancelledAt).getTime();
+      if (params.startDate && t < params.startDate.getTime()) return false;
+      if (params.endDate && t > params.endDate.getTime()) return false;
+      return true;
+    });
+
+  return {
+    rows,
+    summary: {
+      count: rows.length,
+      totalPaid: Math.round(rows.reduce((sum, r) => sum + r.paidAmount, 0) * 100) / 100,
+    },
+  };
 }
 
 // ============================================
@@ -1928,6 +2000,7 @@ export const reportsService = {
   getStockReport,
   getProfitLossReport,
   getSalesSummaryReport,
+  getCancelledSalesReport,
   getStockInterestReport,
   getPurchaseRequirementReport,
   getDailyStockSnapshot,

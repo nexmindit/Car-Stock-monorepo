@@ -1,4 +1,5 @@
 import {
+  Ban,
   Banknote,
   CalendarDays,
   ClipboardList,
@@ -66,6 +67,16 @@ const REPORTS: ReportCard[] = [
     color: 'text-orange-600',
     bgColor: 'bg-orange-100',
     permission: ['ADMIN', 'SALES_MANAGER'],
+  },
+  {
+    id: 'cancelled-sales',
+    title: 'รายงานลูกค้ายกเลิก',
+    description: 'ลูกค้าที่ยกเลิกการจอง/ซื้อ พร้อมยอดเงินที่รับไว้ สำหรับคืนเงิน',
+    icon: <Ban className="w-8 h-8" />,
+    path: '/reports/cancelled-sales',
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+    permission: ['ADMIN', 'SALES_MANAGER', 'ACCOUNTANT'],
   },
   {
     id: 'stock-interest',

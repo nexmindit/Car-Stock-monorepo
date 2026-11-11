@@ -1,5 +1,6 @@
 // apps/api/src/__tests__/campaign-claim-pdf.test.ts
 import { describe, expect, test } from 'bun:test';
+import { claimPdfLayout } from '@car-stock/shared/campaign-claim-pdf';
 import {
   projectCampaignClaimForPdf,
   resolvePdfClaimExpenseKey,
@@ -339,5 +340,19 @@ describe('projectCampaignClaimForPdf', () => {
     expect(pdf.rows[0].cells).toEqual([4000, 3000, 2000, 1000, 2500]);
     expect(pdf.rows[0].total).toBe(12_500);
     expect(pdf.summary.grandTotal).toBe(12_500);
+  });
+});
+
+describe('claimPdfLayout — columns always fit the F14 sheet', () => {
+  for (const n of [0, 1, 4, 8, 12]) {
+    test(`${n} formula columns sum to ≤ 100%`, () => {
+      const l = claimPdfLayout(n);
+      const sum = l.seq + l.name + l.model + l.vin + l.price + l.total + l.date + l.expense * n;
+      expect(sum).toBeLessThanOrEqual(100.01);
+      if (n > 0) expect(l.expense).toBeGreaterThan(2.5);
+    });
+  }
+  test('font shrinks as columns grow', () => {
+    expect(claimPdfLayout(4).fontPx).toBeGreaterThan(claimPdfLayout(12).fontPx);
   });
 });
