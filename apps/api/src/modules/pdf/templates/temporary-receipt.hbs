@@ -89,10 +89,10 @@
             <thead>
                 <tr>
                     <th style="width: 14%;">ชำระโดย</th>
-                    <th style="width: 26%;">ธนาคาร</th>
+                    <th style="width: 22%;">ธนาคาร</th>
                     <th style="width: 18%;">สาขา</th>
                     <th style="width: 18%;">เลขที่บัญชี</th>
-                    <th style="width: 10%;">ลงวันที่</th>
+                    <th style="width: 14%;">ลงวันที่</th>
                     <th style="width: 14%;">จำนวนเงิน</th>
                 </tr>
             </thead>
@@ -402,7 +402,7 @@
     }
 
     .spacer-row td {
-        height: 20px; /* minimal filler — original 80px caused signature overflow */
+        height: 8px; /* minimal filler — gave its height to the signature rows below */
     }
 
     /* Totals Section */
@@ -483,8 +483,10 @@
     }
 
     /* Signatures Section */
+    /* Room to actually sign: the dotted line sits at the row's bottom, the
+       margin above is the writing space (customer: "เซ็นไม่ได้", 17 พ.ย.). */
     .signatures-section {
-        margin-top: 3px;
+        margin-top: 6mm;
         font-size: 10px;
         page-break-inside: avoid; /* keep all sig rows on the same page */
     }
@@ -493,7 +495,7 @@
         display: flex;
         justify-content: flex-start;
         align-items: center;
-        margin-bottom: 3px;
+        margin-bottom: 4.5mm;
         position: relative;
     }
 

@@ -113,9 +113,9 @@ function buildReceiptPaymentMethod(payment: any) {
     branchName: payment.receivingBranch || '',
     accountNumber: payment.receivingAccountNumber || '',
     chequeNumber: isCheque ? payment.referenceNumber || '' : '',
-    chequeDate: isCheque ? formatThaiDate(paymentDate) : '',
+    chequeDate: isCheque ? formatThaiDate(paymentDate, 'short') : '', // short: full month wrapped 3 lines in the 10% column
     chequeAmount: isCheque ? payment.amount.toString() : '',
-    transferDate: isTransfer ? formatThaiDate(paymentDate) : '',
+    transferDate: isTransfer ? formatThaiDate(paymentDate, 'short') : '',
     transferAmount: isTransfer ? payment.amount.toString() : '',
   };
 }
