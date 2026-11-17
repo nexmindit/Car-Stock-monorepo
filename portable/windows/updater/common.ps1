@@ -499,6 +499,11 @@ function Invoke-MigrateDeploy {
     $bun = Join-Path $script:AppDir 'bun.exe'
     $prismaJs = Join-Path $script:AppDir 'tools\migrate\node_modules\prisma\build\index.js'
 
+    # Native tools are judged by $LASTEXITCODE below. Under 'Stop', PS 5.1 turns any
+    # stderr line into a terminating error once output is redirected (scheduled task,
+    # `*>&1 | Out-File`) - that rolled back a clean v1.0.69 update with nothing to migrate.
+    # Function-scoped: does not leak to the caller.
+    $ErrorActionPreference = 'Continue'
     Push-Location $script:AppDir
     try {
         # Reconcile _prisma_migrations with the live database before deploying. Customer
