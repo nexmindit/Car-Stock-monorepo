@@ -65,7 +65,7 @@ function Stop-PidUnderApp {
     Write-Host "  taskkill PID $ProcessId ($Reason) path=$label"
     Start-Process -FilePath 'taskkill.exe' `
         -ArgumentList @('/PID', "$ProcessId", '/T', '/F') `
-        -Wait -NoNewWindow -WindowStyle Hidden | Out-Null
+        -Wait -NoNewWindow | Out-Null
     if (-not ($script:Killed -contains $ProcessId)) {
         $script:Killed.Add($ProcessId) | Out-Null
     }

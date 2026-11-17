@@ -305,7 +305,7 @@ function Invoke-Update {
         Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
         # Zip may contain a single top-level folder
         $newApp = $extractRoot
-        $children = Get-ChildItem -LiteralPath $extractRoot -Directory
+        $children = @(Get-ChildItem -LiteralPath $extractRoot -Directory)
         if ((Test-Path (Join-Path $extractRoot 'VERSION')) -eq $false -and $children.Count -eq 1) {
             $newApp = $children[0].FullName
         }

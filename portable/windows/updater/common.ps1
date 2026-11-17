@@ -83,8 +83,8 @@ function Get-LocalVersion {
 
 function Compare-SemVer {
     param([string]$A, [string]$B)
-    $pa = $A.TrimStart('v').Split('.') | ForEach-Object { [int]($_ -replace '\D', '') }
-    $pb = $B.TrimStart('v').Split('.') | ForEach-Object { [int]($_ -replace '\D', '') }
+    $pa = @($A.TrimStart('v').Split('.') | ForEach-Object { [int]($_ -replace '\D', '') })
+    $pb = @($B.TrimStart('v').Split('.') | ForEach-Object { [int]($_ -replace '\D', '') })
     while ($pa.Count -lt 3) { $pa += 0 }
     while ($pb.Count -lt 3) { $pb += 0 }
     for ($i = 0; $i -lt 3; $i++) {
@@ -257,7 +257,7 @@ function Stop-VbAppProcessTree {
     Write-UpdaterLog "Force-killing PID $ProcessId ($Reason)$(if ($path) { " path=$path" })" 'WARN' | Out-Null
     Start-Process -FilePath 'taskkill.exe' `
         -ArgumentList @('/PID', "$ProcessId", '/T', '/F') `
-        -Wait -NoNewWindow -WindowStyle Hidden | Out-Null
+        -Wait -NoNewWindow | Out-Null
 }
 
 function Stop-VbAppProcessesUnderAppDir {
@@ -273,7 +273,7 @@ function Stop-VbAppProcessesUnderAppDir {
         Write-UpdaterLog "Force-killing PID $id ($Reason) path=$($p.ExecutablePath)" 'WARN' | Out-Null
         Start-Process -FilePath 'taskkill.exe' `
             -ArgumentList @('/PID', "$id", '/T', '/F') `
-            -Wait -NoNewWindow -WindowStyle Hidden | Out-Null
+            -Wait -NoNewWindow | Out-Null
     }
 }
 
