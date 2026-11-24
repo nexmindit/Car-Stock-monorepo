@@ -25,13 +25,24 @@ import {
   type StockAttributeFilterValues,
 } from '../../hooks/useStockAttributeFilters';
 
+const STATUS_OPTIONS = [
+  ['IN_STOCK', 'ในสต๊อก (ไม่รวมขายแล้ว)'],
+  ['ALL', 'สถานะทั้งหมด'],
+  ['AVAILABLE', 'พร้อมขาย'],
+  ['RESERVED', 'จองแล้ว'],
+  ['PREPARING', 'เตรียมขาย'],
+  ['SOLD', 'ขายแล้ว'],
+  ['DEMO', 'รถ Demo'],
+] as const;
+type StatusFilter = (typeof STATUS_OPTIONS)[number][0];
+
 export default function StockListPage() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [stats, setStats] = useState<StockStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_STOCK' | 'AVAILABLE' | 'RESERVED' | 'PREPARING' | 'SOLD' | 'DEMO'>('IN_STOCK');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('IN_STOCK');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -155,8 +166,11 @@ export default function StockListPage() {
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Stock ทั้งหมด</p>
-                <p className="text-2xl font-bold text-gray-900">{stats?.totalStock || 0}</p>
+                {/* Follows the filters (status/search/attributes) — same count as the table. */}
+                <p className="text-sm text-gray-600">
+                  {STATUS_OPTIONS.find(([v]) => v === statusFilter)?.[1]}
+                </p>
+                <p className="text-2xl font-bold text-gray-900">{loading ? '…' : total}</p>
               </div>
               <Package className="h-8 w-8 text-blue-600" />
             </div>
@@ -225,15 +239,13 @@ export default function StockListPage() {
           <select
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
-            <option value="IN_STOCK">ในสต๊อก (ไม่รวมขายแล้ว)</option>
-            <option value="ALL">สถานะทั้งหมด</option>
-            <option value="AVAILABLE">พร้อมขาย</option>
-            <option value="RESERVED">จองแล้ว</option>
-            <option value="PREPARING">เตรียมขาย</option>
-            <option value="SOLD">ขายแล้ว</option>
-            <option value="DEMO">รถ Demo</option>
+            {STATUS_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
