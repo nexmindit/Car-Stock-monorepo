@@ -71,6 +71,21 @@ export function formatThaiDate(
 }
 
 /**
+ * Report header range from the raw 'YYYY-MM-DD' query strings. Never format the
+ * filter's end instant (`endDate + 'T23:59:59.999Z'`): in Bangkok that is 06:59 the
+ * next morning, so picking 23–23 printed "23 ถึง 24".
+ */
+export function formatThaiDateRange(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  format: 'full' | 'short' | 'numeric',
+  separator: string
+): string {
+  if (!startDate || !endDate) return 'ทั้งหมด';
+  return `${formatThaiDate(startDate, format)}${separator}${formatThaiDate(endDate, format)}`;
+}
+
+/**
  * Format date with day name in Thai
  * @param date - Date object or date string
  * @returns Formatted Thai date with day name

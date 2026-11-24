@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { authMiddleware, requirePermission } from '../auth/auth.middleware';
 import { authService } from '../auth/auth.service';
-import { formatThaiDate } from '../pdf/helpers';
+import { formatThaiDate, formatThaiDateRange } from '../pdf/helpers';
 import { pdfService } from '../pdf/pdf.service';
 import { reportsService } from './reports.service';
 import '../../types/context.d';
@@ -90,10 +90,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
 
       const result = await reportsService.getDailyPaymentReport({ startDate, endDate });
 
-      const dateRange =
-        startDate && endDate
-          ? `${formatThaiDate(startDate, 'numeric')} ถึง ${formatThaiDate(endDate, 'numeric')}`
-          : `ทั้งหมด`;
+      const dateRange = formatThaiDateRange(query.startDate, query.endDate, 'numeric', ' ถึง ');
 
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
@@ -323,10 +320,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
 
       const result = await reportsService.getProfitLossReport({ startDate, endDate });
 
-      const dateRange =
-        startDate && endDate
-          ? `${formatThaiDate(startDate, 'short')} - ${formatThaiDate(endDate, 'short')}`
-          : `ทั้งหมด`;
+      const dateRange = formatThaiDateRange(query.startDate, query.endDate, 'short', ' - ');
 
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
@@ -385,10 +379,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       const startDate = query.startDate ? new Date(query.startDate) : undefined;
       const endDate = query.endDate ? new Date(query.endDate + 'T23:59:59.999Z') : undefined;
       const result = await reportsService.getCancelledSalesReport({ startDate, endDate });
-      const dateRange =
-        startDate && endDate
-          ? `${formatThaiDate(startDate, 'short')} - ${formatThaiDate(endDate, 'short')}`
-          : 'ทั้งหมด';
+      const dateRange = formatThaiDateRange(query.startDate, query.endDate, 'short', ' - ');
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
       const pdfBuffer = await pdfService.generateCancelledSalesReportPdf({
@@ -486,10 +477,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         vehicleType: query.vehicleType as any,
       });
 
-      const dateRange =
-        startDate && endDate
-          ? `${formatThaiDate(startDate, 'short')} - ${formatThaiDate(endDate, 'short')}`
-          : `ทั้งหมด`;
+      const dateRange = formatThaiDateRange(query.startDate, query.endDate, 'short', ' - ');
 
       const header = await getCompanyHeader();
       if (!header.logoBase64) header.logoBase64 = pdfService.getLogoBase64();
